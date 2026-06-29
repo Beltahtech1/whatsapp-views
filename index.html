@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beltah VCF Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="aurora"></canvas>
+  <div class="dot-grid"></div>
+
+  <header class="topbar">
+    <div class="topbar-container">
+      <div class="logo-area">
+        <svg class="logo-mark" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="url(#logo-grad)" stroke-width="2" fill="rgba(124,58,237,0.1)"/>
+          <defs>
+            <linearGradient id="logo-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#7c3aed"/>
+              <stop offset="100%" stop-color="#06b6d4"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="logo-text">
+          <div class="brand">Beltah <span class="brand-vcf">VCF</span></div>
+          <div class="tagline">Contact Intelligence Platform</div>
+        </div>
+      </div>
+      <nav class="nav-pills-wrapper">
+        <div class="nav-slider"></div>
+        <button id="nav-tool-btn" class="nav-btn active" data-target="tool-view">Save Contact</button>
+        <button id="nav-admin-btn" class="nav-btn" data-target="admin-view"><i class="fa-solid fa-shield-halved"></i> Admin Panel</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <section id="tool-view" class="view-section active-view">
+      <div class="section-header">
+        <span class="eyebrow-chip">◈ CONTACT IMPORTER</span>
+        <h1 class="main-headline">Save Your <span class="gradient-text">Contacts</span></h1>
+        <p class="sub-headline">Parse, validate, and store VCF contact files — instantly and securely in your browser.</p>
+      </div>
+
+      <div class="tool-card">
+        <div class="segmented-control">
+          <div class="tab-slider"></div>
+          <button class="tab-btn active" data-tab="upload-tab">Upload File</button>
+          <button class="tab-btn" data-tab="paste-tab">Paste VCF Text</button>
+        </div>
+
+        <div id="upload-tab" class="tab-content active-content">
+          <div id="drop-zone" class="drop-zone">
+            <input type="file" id="file-input" accept=".vcf" style="display: none;">
+            <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+            <p class="drop-label">Drop your .vcf file here</p>
+            <p class="drop-sublabel">or click to browse</p>
+            <span class="badge-mono">[.vcf]</span>
+            <div id="file-success-pills"></div>
+          </div>
+        </div>
+
+        <div id="paste-tab" class="tab-content">
+          <div class="textarea-container">
+            <textarea id="vcf-textarea" placeholder="BEGIN:VCARD&#10;VERSION:3.0&#10;FN:John Doe&#10;TEL;TYPE=CELL:+1234567890&#10;END:VCARD" autocomplete="off" spellcheck="false"></textarea>
+            <div id="char-counter" class="char-counter">0 chars / 0 lines</div>
+          </div>
+        </div>
+
+        <div id="preview-card" class="preview-card hidden">
+          <div class="preview-header">
+            <div id="preview-avatar" class="preview-avatar">??</div>
+            <div class="preview-meta">
+              <h3 id="preview-name">Contact Name</h3>
+              <span id="preview-status-badge" class="status-badge">Valid vCard</span>
+            </div>
+          </div>
+          <div class="preview-body" id="preview-details">
+            </div>
+        </div>
+
+        <button id="save-vcf-btn" class="btn-primary" disabled>
+          <span class="btn-text">Save Extracted Contacts</span>
+        </button>
+      </div>
+
+      <div class="counter-strip">
+        <div class="counter-left">
+          <i class="fa-solid fa-database"></i>
+          <span id="local-counter-text">0 contacts stored locally</span>
+        </div>
+        <span class="badge-amber">Encrypted in browser</span>
+      </div>
+    </section>
+
+    <section id="admin-view" class="view-section" hidden>
+      <div id="password-gate" class="gate-card">
+        <div class="gate-icon-wrapper">
+          <i class="fa-solid fa-lock gate-icon"></i>
+        </div>
+        <h2>Restricted Access</h2>
+        <p>Administrator authentication required</p>
+        
+        <form id="gate-form" onsubmit="return false;">
+          <div class="input-group">
+            <input type="password" id="gate-password" placeholder="••••••••••••" autocomplete="off" spellcheck="false">
+            <button type="button" id="toggle-password-btn" class="input-icon-btn">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          <div class="checkbox-group">
+            <label class="custom-checkbox">
+              <input type="checkbox" id="remember-session">
+              <span class="checkmark"></span>
+              Remember for this session
+            </label>
+          </div>
+          <button type="submit" id="submit-gate-btn" class="btn-primary">Authenticate</button>
+          <div id="gate-error" class="gate-error-msg hidden"></div>
+        </form>
+      </div>
+
+      <div id="admin-dashboard" class="hidden">
+        <div class="admin-header">
+          <div>
+            <span class="eyebrow-chip">ADMIN CONTROL PANEL</span>
+            <h1 class="admin-headline">Contact Intelligence</h1>
+          </div>
+          <button id="lock-session-btn" class="btn-danger-outline">
+            <i class="fa-solid fa-right-from-bracket"></i> Lock Session
+          </button>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-info">
+              <span class="metric-label">Total Contacts</span>
+              <h2 id="metric-total" class="metric-val">0</h2>
+            </div>
+            <i class="fa-solid fa-address-book metric-icon"></i>
+          </div>
+          <div class="metric-card">
+            <div class="metric-info">
+              <span class="metric-label">Saved Today</span>
+              <h2 id="metric-today" class="metric-val">0</h2>
+            </div>
+            <i class="fa-solid fa-calendar-day metric-icon"></i>
+          </div>
+          <div class="metric-card">
+            <div class="metric-info">
+              <span class="metric-label">Storage Used</span>
+              <h2 id="metric-storage" class="metric-val">0.0 KB</h2>
+            </div>
+            <i class="fa-solid fa-hard-drive metric-icon"></i>
+          </div>
+          <div class="metric-card">
+            <div class="metric-info">
+              <span class="metric-label">Last Import</span>
+              <h2 id="metric-last" class="metric-val">-</h2>
+            </div>
+            <i class="fa-solid fa-clock metric-icon"></i>
+          </div>
+        </div>
+
+        <div class="table-toolbar">
+          <div class="toolbar-left">
+            <h3>All Contacts</h3>
+            <span id="table-count-badge" class="count-badge">0</span>
+          </div>
+          <div class="toolbar-right">
+            <div class="search-wrapper">
+              <i class="fa-solid fa-magnifying-glass search-icon"></i>
+              <input type="text" id="table-search" placeholder="Search contacts..." autocomplete="off">
+            </div>
+            <select id="table-sort" class="select-dropdown">
+              <option value="name-asc">Name A–Z</option>
+              <option value="name-desc">Name Z–A</option>
+              <option value="date-desc" selected>Newest First</option>
+              <option value="date-asc">Oldest First</option>
+            </select>
+            <button id="export-all-btn" class="btn-amber">
+              <i class="fa-solid fa-file-export"></i> Export All
+            </button>
+            <button id="clear-all-btn" class="btn-danger-outline">
+              <i class="fa-solid fa-trash"></i> Clear All
+            </button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table id="contacts-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Organisation</th>
+                <th>Saved</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="table-body">
+              </tbody>
+          </table>
+          <div id="table-empty-state" class="empty-state hidden"></div>
+        </div>
+
+        <div id="pagination-wrapper" class="pagination-bar hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shortcut-strip">
+    <span><kbd>Ctrl</kbd> + <kbd>K</kbd> Search</span>
+    <span><kbd>Ctrl</kbd> + <kbd>S</kbd> Save Contact</span>
+    <span><kbd>Ctrl</kbd> + <kbd>E</kbd> Export All</span>
+    <span><kbd>Esc</kbd> Dismiss</span>
+  </footer>
+
+  <div id="toast-container"></div>
+  <div id="lightbox-modal" class="modal-overlay" hidden></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
