@@ -1,1062 +1,1148 @@
-/**
- * Beltah VCF Manager Architecture
- * Production Grade single-page application core script
- */
+(function () {
+  'use strict';
 
-// Application State Layer
-const State = {
-  activeView: 'tool-view',
-  contacts: [],
-  activeTab: 'upload-tab',
-  parsedCache: null,
-  isAuthenticated: false,
-  failedAttempts: 0,
-  lockoutTimer: null,
-  pagination: {
-    currentPage: 1,
-    rowsPerPage: 10,
-    filteredData: []
-  }
-};
+  // --- Accent Palette Config ---
+  const PALETTE = ['#7c3aed', '#06b6d4', '#3b82f6', '#a855f7', '#f472b6', '#4ade80'];
 
-// Application Config Constants
-const CONFIG = {
-  STORAGE_PREFIX: 'beltah_',
-  PASS_HASH: 'Beltah@2026',
-  MAX_TOASTS: 4
-};
+  // --- Canvas Background Loop Controllers ---
+  let auroraCtx = null;
+  let gridCtx = null;
+  let auroraRafId = null;
+  let gridRafId = null;
+  let auroraOrbs = [];
+  let gridVanishingXOffset = 0;
+  let gridLineOffset = 0;
 
-// Initializer Module
-document.addEventListener('DOMContentLoaded', () => {
-  initAuroraCanvas();
-  loadLocalData();
-  setupNavigation();
-  setupSegmentedTabs();
-  setupDropZone();
-  setupTextareaEngine();
-  setupValidationTriggers();
-  setupAdminGate();
-  setupToolbarControls();
-  setupKeyboardShortcuts();
-  
-  // Direct authentication check routing
-  if (sessionStorage.getItem(CONFIG.STORAGE_PREFIX + 'auth') === 'true' || 
-      localStorage.getItem(CONFIG.STORAGE_PREFIX + 'auth') === 'true') {
-    State.isAuthenticated = true;
-  }
-});
+  // --- Local Data Memory Layers ---
+  let memoryRecords = [];
+  let currentActivePage = 1;
+  const ITEMS_PER_PAGE = 15;
 
-// 1. ANIMATED CANVAS BACKGROUND ENGINE
-function initAuroraCanvas() {
-  const canvas = document.getElementById('aurora');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  
-  let width = canvas.width = window.innerWidth;
-  let height = canvas.height = window.innerHeight;
-  
-  window.addEventListener('resize', () => {
-    width = canvas.width = window.innerWidth;
-    height = canvas.height = window.innerHeight;
+  // --- DOM Element Reference Tree ---
+  const els = {
+    aurora: document.getElementById('aurora'),
+    grid: document.getElementById('grid-canvas'),
+    particles: document.getElementById('particle-field'),
+    topbar: document.getElementById('main-topbar'),
+    pillCollect: document.getElementById('pill-collect'),
+    pillCommunity: document.getElementById('pill-community'),
+    hamburger: document.getElementById('mobile-hamburger'),
+    mobileMenu: document.getElementById('mobile-menu'),
+    heroCounter: document.getElementById('hero-counter-num'),
+    verifiedCounter: document.getElementById('community-verified-count'),
+    cardWrapper: document.getElementById('contact-form-card'),
+    form: document.getElementById('vcf-collection-form'),
+    fName: document.getElementById('input-first-name'),
+    lName: document.getElementById('input-last-name'),
+    dial: document.getElementById('input-country-dial'),
+    phone: document.getElementById('input-phone'),
+    submitBtn: document.getElementById('submit-btn-element'),
+    publicGrid: document.getElementById('public-cards-wrapper'),
+    triggerAdmin: document.getElementById('trigger-admin'),
+    triggerAdminMob: document.getElementById('trigger-admin-mobile'),
+    adminOverlay: document.getElementById('admin-panel-overlay'),
+    closeAdmin: document.getElementById('close-admin-btn'),
+    gateCard: document.getElementById('admin-gate-card'),
+    gatePass: document.getElementById('admin-pass-input'),
+    togglePass: document.getElementById('toggle-gate-pass'),
+    submitGate: document.getElementById('submit-gate-btn'),
+    gateErr: document.getElementById('admin-gate-err'),
+    dashContainer: document.getElementById('admin-dashboard-container'),
+    lockSession: document.getElementById('action-lock-session'),
+    mTotal: document.getElementById('metric-total-members'),
+    mToday: document.getElementById('metric-joined-today'),
+    mVcfSize: document.getElementById('metric-vcf-size'),
+    mLastTime: document.getElementById('metric-last-time'),
+    masterSub: document.getElementById('master-vcf-subtext'),
+    masterTimestamp: document.getElementById('master-vcf-timestamp'),
+    downloadMaster: document.getElementById('action-download-master'),
+    triggerDelVcf: document.getElementById('action-trigger-delete-vcf'),
+    popDelVcf: document.getElementById('popover-delete-vcf'),
+    cancelDelVcf: document.getElementById('btn-cancel-del-vcf'),
+    confirmDelVcf: document.getElementById('btn-confirm-del-vcf'),
+    tableBadge: document.getElementById('table-total-badge'),
+    search: document.getElementById('table-search-input'),
+    sort: document.getElementById('table-sort-select'),
+    exportAll: document.getElementById('action-export-all-vcf'),
+    triggerClearAll: document.getElementById('action-trigger-clear-all'),
+    popClearAll: document.getElementById('popover-clear-all'),
+    cancelClearAll: document.getElementById('btn-cancel-clear-all'),
+    confirmClearAll: document.getElementById('btn-confirm-clear-all'),
+    tableBody: document.getElementById('table-data-rows-hook'),
+    tableEmpty: document.getElementById('table-empty-state'),
+    pagination: document.getElementById('table-pagination-controls'),
+    toastStack: document.getElementById('toast-stack-container'),
+    confetti: document.getElementById('confetti-canvas'),
+    screenFlash: document.getElementById('screen-flash')
+  };
+
+  // --- Initialization Framework ---
+  window.addEventListener('DOMContentLoaded', function () {
+    initSVGDefinitions();
+    loadRecordsFromDisk();
+    evaluateMotionPreferences();
+    setupGlobalNavigation();
+    bindFormInteractivity();
+    bindAdminPanelInteractivity();
+    renderPublicGridWall();
+    executeCountUpAnimation(els.heroCounter, memoryRecords.length, 1000);
+    executeCountUpAnimation(els.verifiedCounter, memoryRecords.length, 1000);
   });
 
-  const colors = ['#7c3aed', '#a855f7', '#06b6d4'];
-  const orbs = [];
-  
-  for (let i = 0; i < 6; i++) {
-    orbs.push({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      radius: Math.random() * 300 + 300,
-      color: colors[i % colors.length],
-      phaseX: Math.random() * Math.PI * 2,
-      phaseY: Math.random() * Math.PI * 2,
-      speedPhase: Math.random() * 0.002 + 0.001
-    });
+  function evaluateMotionPreferences() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    setupAuroraEngine();
+    setupGridEngine();
+    setupParticleFieldEngine();
   }
 
-  let lastTime = 0;
-  const fpsInterval = 1000 / 40; // 40 FPS throttle target
-
-  function animate(timestamp) {
-    requestAnimationFrame(animate);
-    
-    if (timestamp - lastTime < fpsInterval) return;
-    lastTime = timestamp;
-    
-    ctx.fillStyle = '#05050a';
-    ctx.fillRect(0, 0, width, height);
-    ctx.globalCompositeOperation = 'screen';
-    
-    orbs.forEach(orb => {
-      orb.phaseX += orb.speedPhase;
-      orb.phaseY += orb.speedPhase;
-      
-      const driftX = Math.sin(orb.phaseX) * 80;
-      const driftY = Math.cos(orb.phaseY) * 80;
-      
-      let cx = orb.x + driftX;
-      let cy = orb.y + driftY;
-      
-      let gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, orb.radius);
-      gradient.addColorStop(0, hexToRgba(orb.color, 0.09));
-      gradient.addColorStop(0.5, hexToRgba(orb.color, 0.03));
-      gradient.addColorStop(1, 'transparent');
-      
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(cx, cy, orb.radius, 0, Math.PI * 2);
-      ctx.fill();
-      
-      orb.x += orb.vx;
-      orb.y += orb.vy;
-      
-      if (orb.x < -orb.radius) orb.x = width + orb.radius;
-      if (orb.x > width + orb.radius) orb.x = -orb.radius;
-      if (orb.y < -orb.radius) orb.y = height + orb.radius;
-      if (orb.y > height + orb.radius) orb.y = -orb.radius;
-    });
+  function initSVGDefinitions() {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.style.position = 'absolute';
+    svg.style.width = '0';
+    svg.style.height = '0';
+    svg.innerHTML = `
+      <defs>
+        <linearGradient id="hex-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#7c3aed" />
+          <stop offset="100%" stop-color="#22d3ee" />
+        </linearGradient>
+      </defs>
+    `;
+    document.body.appendChild(svg);
   }
-  
-  requestAnimationFrame(animate);
-}
 
-function hexToRgba(hex, alpha) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}, ${alpha})` : hex;
-}
-
-// 2. STATE STORAGE ACCESSORS
-function loadLocalData() {
-  const stored = localStorage.getItem(CONFIG.STORAGE_PREFIX + 'vcf_contacts');
-  if (stored) {
+  // --- Storage & Memory Logic Engine ---
+  function loadRecordsFromDisk() {
     try {
-      State.contacts = JSON.parse(stored);
-    } catch(e) {
-      State.contacts = [];
+      const stored = localStorage.getItem('beltah_contacts');
+      memoryRecords = stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      memoryRecords = [];
     }
   }
-  updateGlobalCounters();
-}
 
-function updateGlobalCounters() {
-  const counterText = document.getElementById('local-counter-text');
-  if (counterText) {
-    counterText.textContent = `${State.contacts.length} contact${State.contacts.length === 1 ? '' : 's'} stored locally`;
+  function syncRecordsToDisk() {
+    localStorage.setItem('beltah_contacts', JSON.stringify(memoryRecords));
+    rebuildMasterVCFString();
   }
-}
 
-// 3. NAVIGATION VIEW SWITCH ROUTER
-function setupNavigation() {
-  const pills = document.querySelectorAll('.nav-btn');
-  const slider = document.querySelector('.nav-slider');
-  
-  pills.forEach((pill, idx) => {
-    pill.addEventListener('click', () => {
-      const target = pill.getAttribute('data-target');
-      
-      if (target === 'admin-view' && !State.isAuthenticated) {
-        switchView('admin-view');
-        renderAdminState();
-        if (slider) slider.style.transform = `translateX(${idx * 100}%)`;
-        pills.forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
+  function rebuildMasterVCFString() {
+    let output = '';
+    memoryRecords.forEach(function (rec) {
+      output += 'BEGIN:VCARD\r\nVERSION:3.0\r\n';
+      output += 'FN:' + rec.fullName + '\r\n';
+      output += 'N:' + rec.lastName + ';' + rec.firstName + ';;;\r\n';
+      output += 'TEL;TYPE=CELL:' + rec.phone + '\r\n';
+      output += 'X-COUNTRY:' + rec.country + '\r\n';
+      output += 'X-JOINED:' + rec.joinedAt + '\r\n';
+      output += 'END:VCARD\r\n\r\n';
+    });
+    localStorage.setItem('beltah_vcf_master', output.trim());
+  }
+
+  // --- Component: Aurora Ambient Engine ---
+  function setupAuroraEngine() {
+    auroraCtx = els.aurora.getContext('2d');
+    resizeAuroraCanvas();
+    window.addEventListener('resize', resizeAuroraCanvas);
+
+    for (let i = 0; i < 8; i++) {
+      auroraOrbs.push({
+        x: Math.random() * els.aurora.width,
+        y: Math.random() * els.aurora.height,
+        r: Math.random() * 320 + 280,
+        color: PALETTE[i % PALETTE.length],
+        angleX: Math.random() * Math.PI * 2,
+        angleY: Math.random() * Math.PI * 2,
+        speedX: Math.random() * 0.0005 + 0.0003,
+        speedY: Math.random() * 0.0005 + 0.0003
+      });
+    }
+
+    let lastTime = 0;
+    function loop(now) {
+      auroraRafId = requestAnimationFrame(loop);
+      if (now - lastTime < 33.33) return; // Cap at 30 FPS
+      lastTime = now;
+
+      auroraCtx.fillStyle = '#020308';
+      auroraCtx.fillRect(0, 0, els.aurora.width, els.aurora.height);
+
+      auroraOrbs.forEach(function (orb) {
+        orb.angleX += orb.speedX;
+        orb.angleY += orb.speedY;
+
+        const cx = els.aurora.width / 2;
+        const cy = els.aurora.height / 2;
+
+        orb.x = cx + Math.sin(orb.angleX) * (cx * 0.7);
+        orb.y = cy + Math.cos(orb.angleY) * (cy * 0.7);
+
+        const grad = auroraCtx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.r);
+        grad.addColorStop(0, hexToRgbA(orb.color, 0.12));
+        grad.addColorStop(1, 'transparent');
+
+        auroraCtx.fillStyle = grad;
+        auroraCtx.beginPath();
+        auroraCtx.arc(orb.x, orb.y, orb.r, 0, Math.PI * 2);
+        auroraCtx.fill();
+      });
+    }
+    auroraRafId = requestAnimationFrame(loop);
+  }
+
+  function resizeAuroraCanvas() {
+    els.aurora.width = window.innerWidth;
+    els.aurora.height = window.innerHeight;
+  }
+
+  // --- Component: Reactive Depth Grid Engine ---
+  function setupGridEngine() {
+    gridCtx = els.grid.getContext('2d');
+    resizeGridCanvas();
+    window.addEventListener('resize', resizeGridCanvas);
+
+    window.addEventListener('mousemove', function (e) {
+      const normalizedX = (e.clientX / window.innerWidth) - 0.5;
+      gridVanishingXOffset = normalizedX * 60; // ±30px deflection range
+    });
+
+    function loop() {
+      gridRafId = requestAnimationFrame(loop);
+      gridCtx.clearRect(0, 0, els.grid.width, els.grid.height);
+
+      gridCtx.strokeStyle = 'rgba(99, 102, 241, 0.06)';
+      gridCtx.lineWidth = 1;
+
+      const vanishingX = (els.grid.width / 2) + gridVanishingXOffset;
+      const vanishingY = els.grid.height * 0.85;
+
+      gridLineOffset = (gridLineOffset + 0.3) % 40;
+
+      // Vertical Ray Projections
+      const rayCount = 36;
+      for (let i = 0; i <= rayCount; i++) {
+        const angle = (Math.PI / rayCount) * i;
+        const startX = vanishingX + Math.cos(angle) * els.grid.width * 2;
+        const startY = vanishingY + Math.sin(angle) * els.grid.width * 2;
+        gridCtx.beginPath();
+        gridCtx.moveTo(vanishingX, vanishingY);
+        gridCtx.lineTo(startX, startY);
+        gridCtx.stroke();
+      }
+
+      // Horizontal Floor Contours
+      const horizonLineCount = 20;
+      for (let i = 0; i < horizonLineCount; i++) {
+        const currentY = vanishingY + Math.pow(i / horizonLineCount, 2) * (els.grid.height - vanishingY) + gridLineOffset;
+        if (currentY > els.grid.height || currentY < vanishingY) continue;
+        gridCtx.beginPath();
+        gridCtx.moveTo(0, currentY);
+        gridCtx.lineTo(els.grid.width, currentY);
+        gridCtx.stroke();
+      }
+    }
+    gridRafId = requestAnimationFrame(loop);
+  }
+
+  function resizeGridCanvas() {
+    els.grid.width = window.innerWidth;
+    els.grid.height = window.innerHeight;
+  }
+
+  // --- Component: Floating Micro-Particle System ---
+  function setupParticleFieldEngine() {
+    const particleCount = 120;
+    const trackingNodes = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      const el = document.createElement('div');
+      el.className = 'particle';
+
+      const size = Math.floor(Math.random() * 3) + 1;
+      const initX = Math.random() * 100;
+      const initY = Math.random() * 100;
+      const col = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+      const opacity = (Math.random() * 0.35 + 0.15).toFixed(2);
+      const floatDuration = Math.random() * 12 + 8;
+      const delay = -(Math.random() * 20);
+
+      el.style.width = size + px();
+      el.style.height = size + px();
+      el.style.backgroundColor = col;
+      el.style.opacity = opacity;
+      el.style.left = initX + '%';
+      el.style.top = initY + '%';
+
+      const keyframeName = 'part-float-' + i;
+      const keyframes = `
+        @keyframes ${keyframeName} {
+          0% { transform: translateY(0vh) translateX(0px); }
+          50% { transform: translateY(-50vh) translateX(${(Math.random() * 40 - 20).toFixed(1)}px); }
+          100% { transform: translateY(-100vh) translateX(0px); }
+        }
+      `;
+      injectDynamicCSSKeyframe(keyframes);
+
+      el.style.animation = `${keyframeName} ${floatDuration}s linear ${delay}s infinite, twinkle 4s ease-in-out infinite`;
+      els.particles.appendChild(el);
+
+      trackingNodes.push({
+        dom: el,
+        baseX: window.innerWidth * (initX / 100),
+        baseY: window.innerHeight * (initY / 100),
+        currentX: window.innerWidth * (initX / 100),
+        currentY: window.innerHeight * (initY / 100)
+      });
+    }
+
+    window.addEventListener('resize', function () {
+      trackingNodes.forEach(function (node) {
+        const pctX = parseFloat(node.dom.style.left) / 100;
+        const pctY = parseFloat(node.dom.style.top) / 100;
+        node.baseX = window.innerWidth * pctX;
+        node.baseY = window.innerHeight * pctY;
+      });
+    });
+
+    window.addEventListener('mousemove', function (e) {
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+      const repulsionRadius = 80;
+
+      trackingNodes.forEach(function (node) {
+        const rect = node.dom.getBoundingClientRect();
+        const nodeX = rect.left + rect.width / 2;
+        const nodeY = rect.top + rect.height / 2;
+
+        const dx = nodeX - mouseX;
+        const dy = nodeY - mouseY;
+        const distance = Math.hypot(dx, dy);
+
+        if (distance < repulsionRadius && distance > 0) {
+          const force = (repulsionRadius - distance) / repulsionRadius;
+          const pushX = (dx / distance) * force * 35;
+          const pushY = (dy / distance) * force * 35;
+          node.dom.style.transform = `translate3d(${pushX}px, ${pushY}px, 0)`;
+        } else {
+          node.dom.style.transform = '';
+        }
+      });
+    });
+  }
+
+  // --- Component: High Performance Confetti Engine ---
+  function triggerConfettiBurst(originX, originY) {
+    const ctx = els.confetti.getContext('2d');
+    els.confetti.width = window.innerWidth;
+    els.confetti.height = window.innerHeight;
+
+    const particles = [];
+    const count = 200;
+    const shapes = ['rect', 'circle', 'line'];
+
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: originX,
+        y: originY,
+        size: Math.random() * 6 + 4,
+        shape: shapes[Math.floor(Math.random() * shapes.length)],
+        color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+        vx: (Math.random() * 16 - 8),
+        vy: (Math.random() * -10 - 4),
+        gravity: 0.35,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: Math.random() * 0.2 - 0.1,
+        opacity: 1,
+        life: 1
+      });
+    }
+
+    function run() {
+      let active = false;
+      ctx.clearRect(0, 0, els.confetti.width, els.confetti.height);
+
+      particles.forEach(function (p) {
+        if (p.opacity <= 0) return;
+        active = true;
+
+        p.vy += p.gravity;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rotation += p.rotationSpeed;
+        p.life -= 0.009;
+        p.opacity = Math.max(0, p.life);
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.fillStyle = hexToRgbA(p.color, p.opacity);
+        ctx.strokeStyle = hexToRgbA(p.color, p.opacity);
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        if (p.shape === 'rect') {
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        } else if (p.shape === 'circle') {
+          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.moveTo(-p.size / 2, 0);
+          ctx.lineTo(p.size / 2, 0);
+          ctx.stroke();
+        }
+        ctx.restore();
+      });
+
+      if (active) {
+        requestAnimationFrame(run);
+      } else {
+        ctx.clearRect(0, 0, els.confetti.width, els.confetti.height);
+      }
+    }
+    requestAnimationFrame(run);
+  }
+
+  // --- Navigation & Core UI Interfaces ---
+  function setupGlobalNavigation() {
+    window.addEventListener('scroll', function () {
+      if (window.scrollY > 80) {
+        els.topbar.classList.add('scrolled');
+      } else {
+        els.topbar.classList.remove('scrolled');
+      }
+    });
+
+    els.hamburger.addEventListener('click', function () {
+      els.mobileMenu.classList.toggle('open');
+    });
+
+    document.querySelectorAll('.mobile-nav-link').forEach(function (link) {
+      link.addEventListener('click', function () {
+        els.mobileMenu.classList.remove('open');
+      });
+    });
+
+    if ('IntersectionObserver' in window) {
+      const observerOptions = { root: null, threshold: 0.4 };
+      const sections = [
+        { id: 'hero-section', pill: els.pillCollect },
+        { id: 'community-section', pill: els.pillCommunity }
+      ];
+
+      sections.forEach(function (sec) {
+        const target = document.getElementById(sec.id);
+        if (!target) return;
+        const observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              sections.forEach(s => s.pill.classList.remove('active'));
+              sec.pill.classList.add('active');
+            }
+          });
+        }, observerOptions);
+        observer.observe(target);
+      });
+    }
+  }
+
+  // --- Collection Form Architecture ---
+  function bindFormInteractivity() {
+    const inputs = [els.fName, els.lName, els.phone];
+
+    inputs.forEach(function (input) {
+      input.addEventListener('blur', function () {
+        validateField(input);
+      });
+      input.addEventListener('input', function () {
+        clearFieldErrors(input);
+      });
+    });
+
+    els.dial.addEventListener('change', function () {
+      if (els.phone.value.trim() !== '') {
+        validateField(els.phone);
+      }
+    });
+
+    els.form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      let formValid = true;
+
+      inputs.forEach(function (input) {
+        if (!validateField(input)) {
+          formValid = false;
+        }
+      });
+
+      if (!formValid) {
+        showToast('Please correct validation errors before submitting.', 'error');
         return;
       }
-      
-      switchView(target);
-      if (slider) slider.style.transform = `translateX(${idx * 100}%)`;
-      pills.forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
+
+      executeFormSubmissionSequence();
     });
-  });
-}
-
-function switchView(viewId) {
-  State.activeView = viewId;
-  document.querySelectorAll('.view-section').forEach(sec => {
-    sec.classList.remove('active-view');
-    if(sec.id === viewId) sec.classList.add('active-view');
-  });
-}
-
-// 4. SEGMENTED TABS COMPONENT
-function setupSegmentedTabs() {
-  const tabBtns = document.querySelectorAll('.tab-btn');
-  const tabSlider = document.querySelector('.tab-slider');
-  
-  tabBtns.forEach((btn, idx) => {
-    btn.addEventListener('click', () => {
-      const tabId = btn.getAttribute('data-tab');
-      State.activeTab = tabId;
-      
-      if (tabSlider) tabSlider.style.transform = `translateX(${idx * 100}%)`;
-      tabBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      
-      document.querySelectorAll('.tab-content').forEach(tc => {
-        tc.classList.remove('active-content');
-        if (tc.id === tabId) tc.classList.add('active-content');
-      });
-      
-      clearParsedEngineCache();
-    });
-  });
-}
-
-// 5. FILE INGESTION DROP ZONE
-function setupDropZone() {
-  const dz = document.getElementById('drop-zone');
-  const fi = document.getElementById('file-input');
-  if (!dz || !fi) return;
-  
-  dz.addEventListener('click', () => fi.click());
-  
-  dz.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dz.classList.add('dragover');
-  });
-  
-  dz.addEventListener('dragleave', () => {
-    dz.classList.remove('dragover');
-  });
-  
-  dz.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dz.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) {
-      processSelectedFile(e.dataTransfer.files[0]);
-    }
-  });
-  
-  fi.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-      processSelectedFile(e.target.files[0]);
-    }
-  });
-}
-
-function processSelectedFile(file) {
-  const dz = document.getElementById('drop-zone');
-  const wrapper = document.getElementById('file-success-pills');
-  if (!file.name.endsWith('.vcf')) {
-    showToast('Invalid file extension. Please select a .vcf asset', 'error');
-    return;
   }
-  
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const text = e.target.result;
-    dz.classList.add('success-drop');
-    
-    // Mutate internal drop zone view metrics safely
-    if (wrapper) {
-      wrapper.innerHTML = `<div class="file-pilled-chip"><i class="fa-solid fa-file-code"></i> ${escapeHtml(file.name)}</div>`;
+
+  function validateField(input) {
+    const group = input.closest('.field-group');
+    const val = input.value.trim();
+
+    if (input === els.fName || input === els.lName) {
+      if (val === '') {
+        group.classList.remove('is-valid');
+        group.classList.add('has-error');
+        return false;
+      } else {
+        group.classList.remove('has-error');
+        group.classList.add('is-valid');
+        return true;
+      }
     }
+
+    if (input === els.phone) {
+      const combined = (els.dial.value + val).replace(/\D/g, '');
+      if (combined.length < 8 || combined.length > 15) {
+        group.classList.remove('is-valid');
+        group.classList.add('has-error');
+        return false;
+      } else {
+        group.classList.remove('has-error');
+        group.classList.add('is-valid');
+        return true;
+      }
+    }
+    return true;
+  }
+
+  function clearFieldErrors(input) {
+    const group = input.closest('.field-group');
+    group.classList.remove('has-error');
+  }
+
+  function executeFormSubmissionSequence() {
+    els.submitBtn.disabled = true;
+    const originalContent = els.submitBtn.innerHTML;
+    els.submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...';
+
+    setTimeout(function () {
+      const rawPhone = els.phone.value.trim().replace(/\D/g, '');
+      const selectedDial = els.dial.value;
+      const fullFormattedPhone = selectedDial + rawPhone;
+      const selectedOptionText = els.dial.options[els.dial.selectedIndex].text;
+      const countryExtracted = selectedOptionText.split(' ')[0].trim();
+
+      const newRecord = {
+        id: generateUUIDv4(),
+        firstName: sanitizeInput(els.fName.value),
+        lastName: sanitizeInput(els.lName.value),
+        fullName: sanitizeInput(els.fName.value + ' ' + els.lName.value),
+        phone: fullFormattedPhone,
+        dialCode: selectedDial,
+        country: countryExtracted,
+        joinedAt: new Date().toISOString(),
+        submittedAt: formatDisplayDate(new Date())
+      };
+
+      memoryRecords.unshift(newRecord);
+      syncRecordsToDisk();
+
+      // Celebration Step 1: Canvas Confetti Blast
+      const btnRect = els.submitBtn.getBoundingClientRect();
+      triggerConfettiBurst(btnRect.left + btnRect.width / 2, btnRect.top + btnRect.height / 2);
+
+      // Celebration Step 3: Screen Pulse Flash
+      els.screenFlash.style.background = 'rgba(124, 58, 237, 0.12)';
+      setTimeout(() => els.screenFlash.style.background = 'rgba(124, 58, 237, 0)', 400);
+
+      // Celebration Step 4: Toast Trigger
+      showToast('Contact saved! Check the community section below.', 'success');
+
+      // Celebration Step 5: Ticker Counters Increment
+      const currentCount = memoryRecords.length - 1;
+      executeCountUpAnimation(els.heroCounter, memoryRecords.length, 800, currentCount);
+      executeCountUpAnimation(els.verifiedCounter, memoryRecords.length, 800, currentCount);
+
+      // Celebration Step 2: Form Interface Transformation
+      els.cardWrapper.style.transform = 'scale(0.96)';
+      els.cardWrapper.style.opacity = '0.6';
+
+      setTimeout(function () {
+        els.cardWrapper.innerHTML = `
+          <div class="success-state-container">
+            <div class="success-checkmark-box">
+              <svg class="success-svg" viewBox="0 0 50 50">
+                <circle cx="25" cy="25" r="23" />
+                <path d="M14 27 l7 7 l16 -16" />
+              </svg>
+            </div>
+            <h3>You're In! 🎉</h3>
+            <p>Contact saved successfully. Welcome to the Beltah Network, ${newRecord.firstName}!</p>
+            <div class="success-action-buttons-stack">
+              <a href="#group-link" class="btn-success-primary">
+                <i class="fa-brands fa-whatsapp"></i> Join Our Community Group
+              </a>
+              <button class="btn-success-secondary" id="action-reset-form-card">
+                <i class="fa-solid fa-rotate-left"></i> Add Another Contact
+              </button>
+            </div>
+          </div>
+        `;
+        els.cardWrapper.style.transform = 'scale(1)';
+        els.cardWrapper.style.opacity = '1';
+
+        document.getElementById('action-reset-form-card').addEventListener('click', function () {
+          location.reload();
+        });
+
+        // Celebration Step 6: Focus Viewport Shift + Highlights
+        setTimeout(function () {
+          const publicWallSection = document.getElementById('community-section');
+          if (publicWallSection) {
+            publicWallSection.scrollIntoView({ behavior: 'smooth' });
+            setTimeout(function () {
+              const freshCard = els.publicGrid.firstElementChild;
+              if (freshCard) {
+                freshCard.classList.add('highlight-pulse');
+              }
+            }, 800);
+          }
+        }, 1500);
+
+      }, 400);
+
+    }, 700);
+  }
+
+  // --- Component: Public Grid Renderer ---
+  function renderPublicGridWall() {
+    els.publicGrid.innerHTML = '';
+
+    if (memoryRecords.length === 0) {
+      const emp = document.createElement('div');
+      emp.className = 'wall-empty-state';
+      emp.innerHTML = `
+        <svg class="empty-hex-grid" viewBox="0 0 100 100">
+          <polygon points="50,10 90,32 90,78 50,90 10,78 10,32" />
+          <polygon points="50,25 75,40 75,70 50,80 25,70 25,40" />
+        </svg>
+        <h4>Be the first to join!</h4>
+        <p>Submit your details above to appear here.</p>
+      `;
+      els.publicGrid.appendChild(emp);
+      return;
+    }
+
+    memoryRecords.forEach(function (rec, index) {
+      const card = document.createElement('div');
+      card.className = 'member-card';
+      if (index === 0 && els.submitBtn.disabled) {
+        card.classList.add('newly-added');
+      }
+
+      const initials = extractInitials(rec.firstName, rec.lastName);
+      const avatarBg = generateStringColorHash(rec.fullName);
+
+      card.innerHTML = `
+        <div class="avatar-circle" style="background-color: ${avatarBg};">${initials}</div>
+        <div class="member-name">${rec.fullName}</div>
+        <div class="member-country">${rec.country}</div>
+        <div class="member-phone-hidden">
+          <i class="fa-solid fa-lock"></i> ● ● ● ● ● ●
+        </div>
+        <div class="member-joined-date">${calculateRelativeTime(rec.joinedAt)}</div>
+      `;
+      els.publicGrid.appendChild(card);
+    });
+  }
+
+  // --- Control Panel Implementation Layer ---
+  function bindAdminPanelInteractivity() {
+    const openOverlay = function () {
+      els.adminOverlay.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      if (sessionStorage.getItem('beltah_admin') === '1') {
+        revealAdminDashboard();
+      } else {
+        revealAdminAuthGate();
+      }
+    };
+
+    els.triggerAdmin.addEventListener('click', openOverlay);
+    els.triggerAdminMob.addEventListener('click', openOverlay);
+
+    els.closeAdmin.addEventListener('click', function () {
+      els.adminOverlay.classList.remove('active');
+      document.body.style.overflow = '';
+      closeActiveAdminPopovers();
+    });
+
+    els.togglePass.addEventListener('click', function () {
+      const type = els.gatePass.type === 'password' ? 'text' : 'password';
+      els.gatePass.type = type;
+      els.togglePass.innerHTML = type === 'password' ? '<i class="fa-regular fa-eye"></i>' : '<i class="fa-regular fa-eye-slash"></i>';
+    });
+
+    els.gatePass.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') executeAdminValidation();
+    });
+    els.submitGate.addEventListener('click', executeAdminValidation);
+
+    els.lockSession.addEventListener('click', function () {
+      sessionStorage.removeItem('beltah_admin');
+      showToast('Admin session locked.', 'info');
+      revealAdminAuthGate();
+    });
+
+    // Dash Operations Hook Matrix
+    els.search.addEventListener('input', debounce(function () {
+      currentActivePage = 1;
+      renderAdminTableDataset();
+    }, 200));
+
+    els.sort.addEventListener('change', function () {
+      currentActivePage = 1;
+      renderAdminTableDataset();
+    });
+
+    els.downloadMaster.addEventListener('click', executeMasterVCFFileDownload);
+    els.exportAll.addEventListener('click', executeMasterVCFFileDownload);
+
+    // Popover Trigger Mechanisms
+    setupPopoverToggle('action-trigger-delete-vcf', 'popover-delete-vcf');
+    setupPopoverToggle('action-trigger-clear-all', 'popover-clear-all');
+
+    els.cancelDelVcf.addEventListener('click', () => els.popDelVcf.classList.remove('active'));
+    els.btnCancelClearAll = els.cancelClearAll; 
+    els.btnCancelClearAll.addEventListener('click', () => els.popClearAll.classList.remove('active'));
+
+    els.confirmDelVcf.addEventListener('click', function () {
+      localStorage.removeItem('beltah_vcf_master');
+      els.popDelVcf.classList.remove('active');
+      showToast('Compiled master vCard string cleared.', 'warning');
+      refreshAdminDashboardMetrics();
+    });
+
+    els.confirmClearAll.addEventListener('click', function () {
+      memoryRecords = [];
+      syncRecordsToDisk();
+      els.popClearAll.classList.remove('active');
+      showToast('All contact records wiped successfully.', 'error');
+      currentActivePage = 1;
+      refreshAdminDashboardMetrics();
+      renderAdminTableDataset();
+      renderPublicGridWall();
+    });
+  }
+
+  function revealAdminAuthGate() {
+    els.gateCard.classList.remove('dashboard-hidden');
+    els.dashContainer.classList.add('dashboard-hidden');
+    els.gatePass.value = '';
+    els.gateErr.textContent = '';
+    els.gateCard.classList.remove('gate-input-error');
+  }
+
+  function revealAdminDashboard() {
+    els.gateCard.classList.add('dashboard-hidden');
+    els.dashContainer.classList.remove('dashboard-hidden');
+    refreshAdminDashboardMetrics();
+    renderAdminTableDataset();
+  }
+
+  let gateFailures = 0;
+  function executeAdminValidation() {
+    const val = els.gatePass.value;
+    if (val === 'Beltah@2026') {
+      gateFailures = 0;
+      sessionStorage.setItem('beltah_admin', '1');
+      showToast('Access granted. Welcome admin.', 'success');
+      revealAdminDashboard();
+    } else {
+      gateFailures++;
+      els.gateCard.classList.add('gate-shake');
+      els.gateCard.classList.add('gate-input-error');
+      els.gateErr.textContent = '⚠ Access denied';
+      setTimeout(function () {
+        els.gateCard.classList.remove('gate-shake');
+      }, 500);
+
+      if (gateFailures >= 3) {
+        executeGateLockoutProtocol();
+      }
+    }
+  }
+
+  function executeGateLockoutProtocol() {
+    let countdown = 30;
+    els.gatePass.disabled = true;
+    els.submitGate.disabled = true;
+
+    const timer = setInterval(function () {
+      countdown--;
+      els.gateErr.textContent = `Too many attempts. Try again in ${countdown}s`;
+      if (countdown <= 0) {
+        clearInterval(timer);
+        els.gatePass.disabled = false;
+        els.submitGate.disabled = false;
+        els.gateErr.textContent = '';
+        gateFailures = 0;
+      }
+    }, 1000);
+  }
+
+  function refreshAdminDashboardMetrics() {
+    const total = memoryRecords.length;
     
-    executeVcfValidationEngine(text);
+    // Calculate Joined Today Records
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayCount = memoryRecords.filter(r => new Date(r.joinedAt) >= startOfToday).length;
+
+    // Evaluate Blob Size metrics
+    const masterString = localStorage.getItem('beltah_vcf_master') || '';
+    const bytes = new Blob([masterString]).size;
+    const sizeKB = (bytes / 1024).toFixed(2);
+
+    els.mTotal.textContent = total;
+    els.mToday.textContent = todayCount;
+    els.mVcfSize.textContent = sizeKB + ' KB';
+    els.mLastTime.textContent = total > 0 ? calculateRelativeTime(memoryRecords[0].joinedAt) : '--';
+
+    els.masterSub.textContent = `Contains ${total} contacts · ${sizeKB} KB`;
+    els.masterTimestamp.textContent = total > 0 ? `Last compiled: ${formatDisplayDate(new Date(memoryRecords[0].joinedAt))}` : 'Last updated: Never';
+    els.tableBadge.textContent = total;
+  }
+
+  function renderAdminTableDataset() {
+    closeActiveAdminPopovers();
+    els.tableBody.innerHTML = '';
+
+    let filtered = memoryRecords.filter(function (rec) {
+      const q = els.search.value.toLowerCase();
+      return rec.fullName.toLowerCase().includes(q) || rec.phone.includes(q) || rec.country.toLowerCase().includes(q);
+    });
+
+    // Sort Evaluation
+    const sortVal = els.sort.value;
+    if (sortVal === 'oldest') {
+      filtered.sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt));
+    } else if (sortVal === 'alpha') {
+      filtered.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    } else {
+      filtered.sort((a, b) => new Date(b.joinedAt) - new Date(a.joinedAt));
+    }
+
+    if (filtered.length === 0) {
+      els.tableEmpty.classList.remove('container-hidden');
+      els.tableEmpty.innerHTML = `<p style="color: var(--text-3); font-weight:600; font-size:14px;">No contacts found matching criteria.</p>`;
+      els.pagination.innerHTML = '';
+      return;
+    }
+    els.tableEmpty.classList.add('container-hidden');
+
+    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+    if (currentActivePage > totalPages) currentActivePage = Math.max(1, totalPages);
+
+    const startIndex = (currentActivePage - 1) * ITEMS_PER_PAGE;
+    const slice = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+    slice.forEach(function (rec, loopIndex) {
+      const globalIndex = startIndex + loopIndex + 1;
+      const tr = document.createElement('tr');
+      tr.style.opacity = '0';
+      tr.style.transform = 'translateY(8px)';
+
+      const initials = extractInitials(rec.firstName, rec.lastName);
+      const avatarBg = generateStringColorHash(rec.fullName);
+
+      tr.innerHTML = `
+        <td data-label="#">${globalIndex}</td>
+        <td data-label="Avatar">
+          <div class="dash-avatar-circle" style="background-color: ${avatarBg};">${initials}</div>
+        </td>
+        <td data-label="Full Name" class="table-cell-bold-white">${rec.fullName}</td>
+        <td data-label="Phone" class="table-cell-mono-cyan">${rec.phone}</td>
+        <td data-label="Country">${rec.country}</td>
+        <td data-label="Joined">${calculateRelativeTime(rec.joinedAt)}</td>
+        <td data-label="Actions">
+          <div class="row-action-buttons">
+            <button class="btn-row-action action-row-cyan" data-id="${rec.id}" title="Export Individual vCard" onclick="window.BeltahAdminRouter.exportSingleVCF('${rec.id}')">
+              <i class="fa-solid fa-id-card"></i>
+            </button>
+            <div class="popover-wrapper">
+              <button class="btn-row-action action-row-red" title="Delete Contact" onclick="window.BeltahAdminRouter.triggerRowPopover(event, '${rec.id}')">
+                <i class="fa-solid fa-user-xmark"></i>
+              </button>
+              <div class="inline-popover-confirm popover-aligned-right" id="popover-row-${rec.id}">
+                <p>Remove ${rec.firstName} from contacts?</p>
+                <div class="popover-buttons">
+                  <button class="pop-btn-cancel" onclick="window.BeltahAdminRouter.closeRowPopover(event, '${rec.id}')">Cancel</button>
+                  <button class="pop-btn-confirm pop-red" onclick="window.BeltahAdminRouter.confirmRowDeletion('${rec.id}')">Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </td>
+      `;
+
+      els.tableBody.appendChild(tr);
+      setTimeout(function () {
+        tr.style.transition = 'opacity 0.3s var(--ease-spring), transform 0.3s var(--ease-spring)';
+        tr.style.opacity = '1';
+        tr.style.transform = 'translateY(0)';
+      }, loopIndex * 40);
+    });
+
+    renderTablePaginationControls(filtered.length, totalPages);
+  }
+
+  function renderTablePaginationControls(totalItems, totalPages) {
+    els.pagination.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    const info = document.createElement('div');
+    info.className = 'pagination-info';
+    const start = (currentActivePage - 1) * ITEMS_PER_PAGE + 1;
+    const end = Math.min(currentActivePage * ITEMS_PER_PAGE, totalItems);
+    info.textContent = `Showing ${start}-${end} of ${totalItems} items`;
+    els.pagination.appendChild(info);
+
+    const pillsContainer = document.createElement('div');
+    pillsContainer.className = 'pagination-controls-pills';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'btn-pag-pill';
+    prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+    prevBtn.disabled = currentActivePage === 1;
+    prevBtn.addEventListener('click', () => { currentActivePage--; renderAdminTableDataset(); });
+    pillsContainer.appendChild(prevBtn);
+
+    for (let i = 1; i <= totalPages; i++) {
+      const pill = document.createElement('button');
+      pill.className = 'btn-pag-pill' + (i === currentActivePage ? ' pag-active' : '');
+      pill.textContent = i;
+      pill.addEventListener('click', () => { currentActivePage = i; renderAdminTableDataset(); });
+      pillsContainer.appendChild(pill);
+    }
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'btn-pag-pill';
+    nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+    nextBtn.disabled = currentActivePage === totalPages;
+    nextBtn.addEventListener('click', () => { currentActivePage++; renderAdminTableDataset(); });
+    pillsContainer.appendChild(nextBtn);
+
+    els.pagination.appendChild(pillsContainer);
+  }
+
+  function executeMasterVCFFileDownload() {
+    const data = localStorage.getItem('beltah_vcf_master') || '';
+    if (data.trim() === '') {
+      showToast('No contact records compiled to export.', 'warning');
+      return;
+    }
+    const blob = new Blob([data], { type: 'text/vcard;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dStr = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `Beltah-Contacts-${dStr}.vcf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Master VCF database downloaded.', 'success');
+  }
+
+  // --- Externalized Global Event Route Routers ---
+  window.BeltahAdminRouter = {
+    exportSingleVCF: function (id) {
+      const rec = memoryRecords.find(r => r.id === id);
+      if (!rec) return;
+      let vcf = 'BEGIN:VCARD\r\nVERSION:3.0\r\n';
+      vcf += `FN:${rec.fullName}\r\n`;
+      vcf += `N:${rec.lastName};${rec.firstName};;;\r\n`;
+      vcf += `TEL;TYPE=CELL:${rec.phone}\r\n`;
+      vcf += `X-COUNTRY:${rec.country}\r\n`;
+      vcf += `X-JOINED:${rec.joinedAt}\r\n`;
+      vcf += 'END:VCARD';
+
+      const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${rec.firstName}-${rec.lastName}.vcf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`vCard for ${rec.firstName} downloaded.`, 'success');
+    },
+    triggerRowPopover: function (e, id) {
+      e.stopPropagation();
+      closeActiveAdminPopovers();
+      const pop = document.getElementById(`popover-row-${id}`);
+      if (pop) pop.classList.add('active');
+    },
+    closeRowPopover: function (e, id) {
+      e.stopPropagation();
+      const pop = document.getElementById(`popover-row-${id}`);
+      if (pop) pop.classList.remove('active');
+    },
+    confirmRowDeletion: function (id) {
+      memoryRecords = memoryRecords.filter(r => r.id !== id);
+      syncRecordsToDisk();
+      showToast('Contact removed successfully.', 'warning');
+      refreshAdminDashboardMetrics();
+      renderAdminTableDataset();
+      renderPublicGridWall();
+    }
   };
-  reader.readAsText(file);
-}
 
-// 6. PASTE TEXTAREA ENGINE
-function setupTextareaEngine() {
-  const ta = document.getElementById('vcf-textarea');
-  const counter = document.getElementById('char-counter');
-  if (!ta || !counter) return;
-  
-  ta.addEventListener('input', () => {
-    const len = ta.value.length;
-    const lines = ta.value === "" ? 0 : ta.value.split('\n').length;
-    counter.textContent = `${len} char${len === 1 ? '' : 's'} / ${lines} line${lines === 1 ? '' : 's'}`;
-    executeVcfValidationEngine(ta.value);
-  });
-}
-
-function clearParsedEngineCache() {
-  State.parsedCache = null;
-  document.getElementById('preview-card').classList.add('hidden');
-  document.getElementById('save-vcf-btn').disabled = true;
-  
-  const dz = document.getElementById('drop-zone');
-  const wrapper = document.getElementById('file-success-pills');
-  if (dz) dz.classList.remove('success-drop');
-  if (wrapper) wrapper.innerHTML = '';
-  
-  const ta = document.getElementById('vcf-textarea');
-  if (ta) {
-    ta.value = '';
-    const counter = document.getElementById('char-counter');
-    if (counter) counter.textContent = '0 chars / 0 lines';
-  }
-}
-
-// 7. REGEX PARSING AND VALIDATION ENGINE
-function executeVcfValidationEngine(rawText) {
-  const cleaned = rawText.trim();
-  const previewCard = document.getElementById('preview-card');
-  const saveBtn = document.getElementById('save-vcf-btn');
-  
-  if (!cleaned) {
-    previewCard.classList.add('hidden');
-    saveBtn.disabled = true;
-    State.parsedCache = null;
-    return;
-  }
-  
-  if (!cleaned.startsWith('BEGIN:VCARD') || !cleaned.includes('END:VCARD')) {
-    renderInvalidPreview('Malformed Structure: Missing Envelope Blocks');
-    return;
-  }
-  
-  // Segment parsing boundary instances
-  const cards = cleaned.split(/END:VCARD/i)
-                       .map(c => c.trim() + '\nEND:VCARD')
-                       .filter(c => c.startsWith('BEGIN:VCARD'));
-                       
-  if (cards.length === 0) {
-    renderInvalidPreview('Invalid Target Context');
-    return;
-  }
-  
-  const parsedContacts = [];
-  
-  cards.forEach(cardStr => {
-    const meta = parseSingleVCard(cardStr);
-    if (meta.name || meta.phone || meta.email) {
-      parsedContacts.push(meta);
+  // --- Infrastructure Utility Subsystem ---
+  function showToast(message, type = 'success', duration = 4000) {
+    if (els.toastStack.children.length >= 4) {
+      const oldest = els.toastStack.firstElementChild;
+      if (oldest) removeToastNode(oldest);
     }
-  });
-  
-  if (parsedContacts.length === 0) {
-    renderInvalidPreview('No extractable records encountered');
-    return;
-  }
-  
-  State.parsedCache = parsedContacts;
-  renderValidPreview(parsedContacts);
-  saveBtn.disabled = false;
-}
 
-function parseSingleVCard(rawStr) {
-  const data = { name: '', phone: '', email: '', org: '', title: '', address: '', url: '', bday: '', note: '', raw: rawStr };
-  
-  const lines = rawStr.split(/\r?\n/);
-  lines.forEach(line => {
-    const upper = line.trim();
-    if (!upper) return;
-    
-    // Capture token delimiter match profiles
-    const splitIdx = upper.indexOf(':');
-    if (splitIdx === -1) return;
-    
-    const keyPart = upper.substring(0, splitIdx);
-    const valuePart = upper.substring(splitIdx + 1).trim();
-    const keyBase = keyPart.split(';')[0].toUpperCase();
-    
-    switch(keyBase) {
-      case 'FN':
-        data.name = valuePart;
-        break;
-      case 'TEL':
-        if (!data.phone) data.phone = valuePart; // Capture primary record node
-        break;
-      case 'EMAIL':
-        if (!data.email) data.email = valuePart;
-        break;
-      case 'ORG':
-        data.org = valuePart.replace(/;/g, ' ').trim();
-        break;
-      case 'TITLE':
-        data.title = valuePart;
-        break;
-      case 'ADR':
-        data.address = valuePart.replace(/;/g, ' ').trim();
-        break;
-      case 'URL':
-        data.url = valuePart;
-        break;
-      case 'BDAY':
-        data.bday = valuePart;
-        break;
-      case 'NOTE':
-        data.note = valuePart;
-        break;
-    }
-  });
-  
-  if (!data.name && data.phone) data.name = 'Contact ' + data.phone;
-  return data;
-}
+    const toast = document.createElement('div');
+    toast.className = `toast-item toast-${type}`;
 
-function renderInvalidPreview(errorMsg) {
-  const pCard = document.getElementById('preview-card');
-  const avatar = document.getElementById('preview-avatar');
-  const nameEl = document.getElementById('preview-name');
-  const badge = document.getElementById('preview-status-badge');
-  const body = document.getElementById('preview-details');
-  const saveBtn = document.getElementById('save-vcf-btn');
-  
-  avatar.textContent = '✗';
-  avatar.style.background = 'var(--accent-red)';
-  nameEl.textContent = 'Validation Interrupted';
-  badge.className = 'status-badge invalid';
-  badge.textContent = 'Invalid Format';
-  body.innerHTML = `<div class="preview-row" style="color:var(--accent-red)"><i class="fa-solid fa-circle-exclamation"></i>${escapeHtml(errorMsg)}</div>`;
-  
-  pCard.classList.remove('hidden');
-  saveBtn.disabled = true;
-  State.parsedCache = null;
-}
+    let icon = 'fa-circle-info';
+    if (type === 'success') icon = 'fa-circle-check';
+    if (type === 'error') icon = 'fa-circle-exclamation';
+    if (type === 'warning') icon = 'fa-triangle-exclamation';
 
-function renderValidPreview(contacts) {
-  const pCard = document.getElementById('preview-card');
-  const avatar = document.getElementById('preview-avatar');
-  const nameEl = document.getElementById('preview-name');
-  const badge = document.getElementById('preview-status-badge');
-  const body = document.getElementById('preview-details');
-  
-  pCard.classList.remove('hidden');
-  
-  if (contacts.length > 1) {
-    avatar.textContent = contacts.length;
-    avatar.style.background = 'linear-gradient(135deg, var(--accent-amber), var(--accent-purple))';
-    nameEl.textContent = 'Multi-Record Batch Stream';
-    badge.className = 'status-badge multi';
-    badge.textContent = `${contacts.length} contacts detected`;
-    
-    let html = '';
-    const sliceCount = Math.min(contacts.length, 3);
-    for(let i=0; i<sliceCount; i++) {
-      html += `<div class="preview-row"><i class="fa-solid fa-user"></i><span><b>${escapeHtml(contacts[i].name)}</b> - ${escapeHtml(contacts[i].phone || 'No phone')}</span></div>`;
-    }
-    if(contacts.length > 3) {
-      html += `<div class="preview-row" style="color:var(--text-muted)"><i class="fa-solid fa-ellipsis"></i><span>and ${contacts.length - 3} more records...</span></div>`;
-    }
-    body.innerHTML = html;
-  } else {
-    const target = contacts[0];
-    const initials = target.name ? target.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase() : '??';
-    
-    avatar.textContent = initials;
-    avatar.style.background = 'linear-gradient(135deg, var(--accent-violet), var(--accent-cyan))';
-    nameEl.textContent = escapeHtml(target.name);
-    badge.className = 'status-badge valid';
-    badge.textContent = '✓ Valid vCard';
-    
-    let html = '';
-    if(target.phone) html += `<div class="preview-row"><i class="fa-solid fa-phone"></i><span>${escapeHtml(target.phone)}</span></div>`;
-    if(target.email) html += `<div class="preview-row"><i class="fa-solid fa-envelope"></i><span>${escapeHtml(target.email)}</span></div>`;
-    if(target.org) html += `<div class="preview-row"><i class="fa-solid fa-building"></i><span>${escapeHtml(target.org)}</span></div>`;
-    if(!html) html = `<div class="preview-row" style="color:var(--text-muted)"><i class="fa-solid fa-circle-info"></i><span>No data properties explicitly assigned</span></div>`;
-    body.innerHTML = html;
-  }
-}
-
-// 8. STORAGE PERSISTENCE HANDLING
-function setupValidationTriggers() {
-  const btn = document.getElementById('save-vcf-btn');
-  if(!btn) return;
-  
-  btn.addEventListener('click', () => {
-    if(!State.parsedCache || State.parsedCache.length === 0) return;
-    
-    btn.innerHTML = `<i class="fa-solid fa-circle-notch spinner"></i> Committing Matrix...`;
-    btn.disabled = true;
-    
-    setTimeout(() => {
-      const stamp = new Date().toISOString();
-      State.parsedCache.forEach(item => {
-        const generated = {
-          id: 'vcf_x_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36),
-          name: item.name || 'Unnamed Record',
-          phone: item.phone || '',
-          email: item.email || '',
-          org: item.org || '',
-          raw: item.raw,
-          savedAt: stamp
-        };
-        State.contacts.push(generated);
-      });
-      
-      localStorage.setItem(CONFIG.STORAGE_PREFIX + 'vcf_contacts', JSON.stringify(State.contacts));
-      
-      showToast(`Successfully registered ${State.parsedCache.length} element context maps`, 'success');
-      clearParsedEngineCache();
-      updateGlobalCounters();
-      
-      btn.innerHTML = `<span class="btn-text">Save Extracted Contacts</span>`;
-      btn.disabled = true;
-    }, 600);
-  });
-}
-
-// 9. SECURITY & PASSWORD GATE IMPLEMENTATION
-function setupAdminGate() {
-  const form = document.getElementById('gate-form');
-  const passInput = document.getElementById('gate-password');
-  const toggleBtn = document.getElementById('toggle-password-btn');
-  const errorEl = document.getElementById('gate-error');
-  const lockBtn = document.getElementById('lock-session-btn');
-  
-  if(toggleBtn && passInput) {
-    toggleBtn.addEventListener('click', () => {
-      const icon = toggleBtn.querySelector('i');
-      if (passInput.type === 'password') {
-        passInput.type = 'text';
-        icon.className = 'fa-solid fa-eye-slash';
-      } else {
-        passInput.type = 'password';
-        icon.className = 'fa-solid fa-eye';
-      }
-    });
-  }
-  
-  if(form) {
-    form.addEventListener('submit', () => {
-      if (State.lockoutTimer) return;
-      
-      const val = passInput.value;
-      const gateCard = document.getElementById('password-gate');
-      
-      if (val === CONFIG.PASS_HASH) {
-        State.isAuthenticated = true;
-        State.failedAttempts = 0;
-        errorEl.classList.add('hidden');
-        passInput.classList.remove('error-border');
-        passInput.value = '';
-        
-        const remember = document.getElementById('remember-session');
-        if (remember && remember.checked) {
-          localStorage.setItem(CONFIG.STORAGE_PREFIX + 'auth', 'true');
-        } else {
-          sessionStorage.setItem(CONFIG.STORAGE_PREFIX + 'auth', 'true');
-        }
-        
-        showToast('Access pipeline granted', 'success');
-        renderAdminState();
-      } else {
-        State.failedAttempts++;
-        gateCard.classList.remove('shake');
-        void gateCard.offsetWidth; // Trigger layout engine execution reflow
-        gateCard.classList.add('shake');
-        passInput.classList.add('error-border');
-        errorEl.classList.remove('hidden');
-        errorEl.textContent = `⚠ Incorrect verification pipeline authentication (${State.failedAttempts}/3)`;
-        
-        if (State.failedAttempts >= 3) {
-          initiateLockoutTimer();
-        }
-      }
-    });
-  }
-  
-  if(lockBtn) {
-    lockBtn.addEventListener('click', () => {
-      State.isAuthenticated = false;
-      sessionStorage.removeItem(CONFIG.STORAGE_PREFIX + 'auth');
-      localStorage.removeItem(CONFIG.STORAGE_PREFIX + 'auth');
-      showToast('Administrative context lifecycle decoupled', 'info');
-      renderAdminState();
-    });
-  }
-}
-
-function initiateLockoutTimer() {
-  const passInput = document.getElementById('gate-password');
-  const btn = document.getElementById('submit-gate-btn');
-  const errorEl = document.getElementById('gate-error');
-  
-  let timeLeft = 30;
-  passInput.disabled = true;
-  btn.disabled = true;
-  
-  State.lockoutTimer = setInterval(() => {
-    timeLeft--;
-    errorEl.textContent = `🚨 Security Lockout: Pipeline terminal throttled for ${timeLeft}s`;
-    
-    if (timeLeft <= 0) {
-      clearInterval(State.lockoutTimer);
-      State.lockoutTimer = null;
-      State.failedAttempts = 0;
-      passInput.disabled = false;
-      btn.disabled = false;
-      errorEl.classList.add('hidden');
-    }
-  }, 1000);
-}
-
-function renderAdminState() {
-  const gate = document.getElementById('password-gate');
-  const dashboard = document.getElementById('admin-dashboard');
-  
-  if (State.activeView !== 'admin-view') return;
-  
-  if (!State.isAuthenticated) {
-    gate.classList.remove('hidden');
-    dashboard.classList.add('hidden');
-  } else {
-    gate.classList.add('hidden');
-    dashboard.classList.remove('hidden');
-    calculateMetrics();
-    filterAndRenderTable();
-  }
-}
-
-// 10. METRICS COUNT-UP ENGINE
-function calculateMetrics() {
-  const total = State.contacts.length;
-  
-  // Metric 2 calculation: Today matching boundary profiles
-  const startOfToday = new Date();
-  startOfToday.setHours(0,0,0,0);
-  const savedToday = State.contacts.filter(c => new Date(c.savedAt) >= startOfToday).length;
-  
-  // Metric 3 calculation: Allocated string capacity calculation
-  const sizeKb = (JSON.stringify(State.contacts).length / 1024);
-  
-  // Metric 4 calculation: Trace chronological timestamps
-  let lastImportStr = '-';
-  if(total > 0) {
-    const newest = new Date(Math.max(...State.contacts.map(c => new Date(c.savedAt).getTime())));
-    lastImportStr = formatRelativeTime(newest);
-  }
-  
-  animateValueCounter('metric-total', total, 800);
-  animateValueCounter('metric-today', savedToday, 800);
-  
-  document.getElementById('metric-storage').textContent = `${sizeKb.toFixed(1)} KB`;
-  document.getElementById('metric-last').textContent = lastImportStr;
-}
-
-function animateValueCounter(id, targetVal, duration) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  let start = 0;
-  const startTime = performance.now();
-  
-  function update(currentTime) {
-    const elapsed = currentTime - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    // Apply var(--ease-spring) representation scaling mathematically
-    const easeProgress = 1 - Math.pow(1 - progress, 3); 
-    const current = Math.floor(easeProgress * targetVal);
-    
-    el.textContent = current;
-    
-    if (progress < 1) {
-      requestAnimationFrame(update);
-    } else {
-      el.textContent = targetVal;
-    }
-  }
-  requestAnimationFrame(update);
-}
-
-function formatRelativeTime(dateObj) {
-  const now = new Date();
-  const diffMs = now - dateObj;
-  const diffMins = Math.floor(diffMs / 60000);
-  
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHrs = Math.floor(diffMins / 60);
-  if (diffHrs < 24) return `${diffHrs}h ago`;
-  return dateObj.toLocaleDateString(undefined, {month:'short', day:'numeric'});
-}
-
-// 11. TABLE CONTROLS, SEARCH, AND PAGINATION
-function setupToolbarControls() {
-  const search = document.getElementById('table-search');
-  const sort = document.getElementById('table-sort');
-  const exportAll = document.getElementById('export-all-btn');
-  const clearAll = document.getElementById('clear-all-btn');
-  
-  let debounceTimeout;
-  if(search) {
-    search.addEventListener('input', () => {
-      clearTimeout(debounceTimeout);
-      debounceTimeout = setTimeout(() => {
-        State.pagination.currentPage = 1;
-        filterAndRenderTable();
-      }, 200);
-    });
-  }
-  
-  if(sort) {
-    sort.addEventListener('change', () => {
-      filterAndRenderTable();
-    });
-  }
-  
-  if(exportAll) exportAll.addEventListener('click', () => triggerExportAllEngine());
-  if(clearAll) clearAll.addEventListener('click', () => triggerWipeSequence(clearAll));
-}
-
-function filterAndRenderTable() {
-  const query = (document.getElementById('table-search')?.value || '').toLowerCase().trim();
-  const sortVal = document.getElementById('table-sort')?.value || 'date-desc';
-  
-  let result = [...State.contacts];
-  
-  if (query) {
-    result = result.filter(c => 
-      c.name.toLowerCase().includes(query) || 
-      c.phone.includes(query) || 
-      c.email.toLowerCase().includes(query) || 
-      c.org.toLowerCase().includes(query)
-    );
-  }
-  
-  // Execute logical matrix sort mapping
-  result.sort((a, b) => {
-    if (sortVal === 'name-asc') return a.name.localeCompare(b.name);
-    if (sortVal === 'name-desc') return b.name.localeCompare(a.name);
-    if (sortVal === 'date-desc') return new Date(b.savedAt) - new Date(a.savedAt);
-    if (sortVal === 'date-asc') return new Date(a.savedAt) - new Date(b.savedAt);
-    return 0;
-  });
-  
-  State.pagination.filteredData = result;
-  document.getElementById('table-count-badge').textContent = result.length;
-  
-  renderTablePage();
-}
-
-function renderTablePage() {
-  const tbody = document.getElementById('table-body');
-  const emptyState = document.getElementById('table-empty-state');
-  if(!tbody) return;
-  
-  tbody.innerHTML = '';
-  const data = State.pagination.filteredData;
-  const total = data.length;
-  
-  if (total === 0) {
-    emptyState.classList.remove('hidden');
-    const isSearch = (document.getElementById('table-search')?.value || '').trim() !== '';
-    emptyState.innerHTML = `
-      <div class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <h4>${isSearch ? 'No parameters matched configuration' : 'Repository Matrix Empty'}</h4>
-        <p>${isSearch ? 'Refine search terms or remove constraints' : 'Ingest a valid .vcf stream to begin monitoring analysis'}</p>
-      </div>`;
-    document.getElementById('pagination-wrapper').classList.add('hidden');
-    return;
-  }
-  
-  emptyState.classList.add('hidden');
-  
-  const perPage = State.pagination.rowsPerPage;
-  const currPage = State.pagination.currentPage;
-  const startIdx = (currPage - 1) * perPage;
-  const endIdx = Math.min(startIdx + perPage, total);
-  
-  const targetSlice = data.slice(startIdx, endIdx);
-  
-  targetSlice.forEach((contact, idx) => {
-    const tr = document.createElement('tr');
-    tr.className = 'contact-row';
-    tr.style.opacity = '0';
-    tr.style.transform = 'translateY(10px)';
-    
-    const initials = contact.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
-    const globalIdx = startIdx + idx + 1;
-    
-    tr.innerHTML = `
-      <td data-label="#">${globalIdx}</td>
-      <td data-label="Name">
-        <div class="table-identity">
-          <div class="table-avatar">${initials}</div>
-          <span style="font-weight:600">${escapeHtml(contact.name)}</span>
-        </div>
-      </td>
-      <td data-label="Phone" class="td-mono">${escapeHtml(contact.phone || '-')}</td>
-      <td data-label="Email" class="td-mono">${escapeHtml(contact.email || '-')}</td>
-      <td data-label="Organisation">${escapeHtml(contact.org || '-')}</td>
-      <td data-label="Saved">${formatRelativeTime(new Date(contact.savedAt))}</td>
-      <td data-label="Actions">
-        <div class="actions-cell">
-          <button class="action-btn cyan-btn" onclick="exportSingleContactContext('${contact.id}')" title="Export Segment"><i class="fa-solid fa-download"></i></button>
-          <button class="action-btn red-btn" onclick="requestMicroConfirmation(event, '${contact.id}')" title="Wipe Segment"><i class="fa-solid fa-trash"></i></button>
-        </div>
-      </td>
+    toast.innerHTML = `
+      <div class="toast-content-wrapper">
+        <i class="fa-solid ${icon} toast-icon"></i>
+        <span class="toast-msg">${message}</span>
+      </div>
+      <button class="toast-close-btn" aria-label="Dismiss Toast"><i class="fa-solid fa-xmark"></i></button>
+      <div class="toast-progress-bar" style="animation-duration: ${duration}ms;"></div>
     `;
-    
-    tbody.appendChild(tr);
-    
-    // Staggered visualization interpolation entry arrays
-    setTimeout(() => {
-      tr.style.transition = `all 0.4s var(--ease-spring)`;
-      tr.style.opacity = '1';
-      tr.style.transform = 'translateY(0)';
-    }, idx * 60);
-  });
-  
-  renderPaginationControls(total, perPage, currPage);
-}
 
-function renderPaginationControls(total, perPage, currPage) {
-  const wrapper = document.getElementById('pagination-wrapper');
-  if(!wrapper) return;
-  
-  const pageCount = Math.ceil(total / perPage);
-  if(pageCount <= 1) {
-    wrapper.classList.add('hidden');
-    return;
+    els.toastStack.appendChild(toast);
+
+    const closeBtn = toast.querySelector('.toast-close-btn');
+    closeBtn.addEventListener('click', () => removeToastNode(toast));
+
+    const autoTimer = setTimeout(() => {
+      removeToastNode(toast);
+    }, duration);
+
+    toast.dataset.timerId = autoTimer;
   }
-  
-  wrapper.classList.remove('hidden');
-  wrapper.innerHTML = '';
-  
-  const prevBtn = document.createElement('button');
-  prevBtn.className = 'page-pill';
-  prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
-  prevBtn.disabled = currPage === 1;
-  prevBtn.addEventListener('click', () => {
-    State.pagination.currentPage--;
-    renderTablePage();
-  });
-  wrapper.appendChild(prevBtn);
-  
-  for(let i=1; i<=pageCount; i++) {
-    const pill = document.createElement('button');
-    pill.className = `page-pill ${i === currPage ? 'active' : ''}`;
-    pill.textContent = i;
-    pill.addEventListener('click', () => {
-      State.pagination.currentPage = i;
-      renderTablePage();
+
+  function removeToastNode(toast) {
+    if (toast.classList.contains('toast-closing')) return;
+    if (toast.dataset.timerId) clearTimeout(parseInt(toast.dataset.timerId, 10));
+    toast.classList.add('toast-closing');
+    toast.addEventListener('animationend', function () {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
     });
-    wrapper.appendChild(pill);
   }
-  
-  const nextBtn = document.createElement('button');
-  nextBtn.className = 'page-pill';
-  nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
-  nextBtn.disabled = currPage === pageCount;
-  nextBtn.addEventListener('click', () => {
-    State.pagination.currentPage++;
-    renderTablePage();
-  });
-  wrapper.appendChild(nextBtn);
-}
 
-// 12. EXPORT AND SINGLE INTEGRATION LOOPS
-function exportSingleContactContext(id) {
-  const match = State.contacts.find(c => c.id === id);
-  if(!match) return;
-  
-  let vcard = match.raw;
-  // Reconstruct card model parameters if context maps demand normal form serialization
-  if(!vcard || !vcard.startsWith('BEGIN:VCARD')) {
-    vcard = `BEGIN:VCARD\nVERSION:3.0\nFN:${match.name}\nTEL;TYPE=CELL:${match.phone}\nEMAIL:${match.email}\nORG:${match.org}\nEND:VCARD`;
+  function setupPopoverToggle(triggerId, popoverId) {
+    const trigger = document.getElementById(triggerId);
+    const popover = document.getElementById(popoverId);
+    if (!trigger || !popover) return;
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const state = popover.classList.contains('active');
+      closeActiveAdminPopovers();
+      if (!state) popover.classList.add('active');
+    });
+
+    popover.addEventListener('click', (e) => e.stopPropagation());
   }
-  
-  executeBlobDownload(vcard, `${match.name.replace(/\s+/g, '_')}-beltah.vcf`);
-  showToast('Single node serialization complete', 'success');
-}
 
-function triggerExportAllEngine() {
-  if(State.contacts.length === 0) {
-    showToast('No record metrics present to pass into context stream', 'warning');
-    return;
+  function closeActiveAdminPopovers() {
+    document.querySelectorAll('.inline-popover-confirm').forEach(p => p.classList.remove('active'));
   }
-  
-  let megaStream = '';
-  State.contacts.forEach(c => {
-    if(c.raw) {
-      megaStream += c.raw.trim() + '\n';
-    } else {
-      megaStream += `BEGIN:VCARD\nVERSION:3.0\nFN:${c.name}\nTEL;TYPE=CELL:${c.phone}\nEMAIL:${c.email}\nORG:${c.org}\nEND:VCARD\n`;
-    }
-  });
-  
-  executeBlobDownload(megaStream, `beltah_master_export_${Date.now()}.vcf`);
-  showToast(`Bulk serialization sequence generated explicitly for ${State.contacts.length} objects`, 'success');
-}
 
-function executeBlobDownload(textStr, filename) {
-  const blob = new Blob([textStr], { type: 'text/vcard;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
-}
+  document.addEventListener('click', closeActiveAdminPopovers);
 
-// 13. DATA TRUNCATION AND CONFIRMATION INTERFACES
-function requestMicroConfirmation(event, id) {
-  event.stopPropagation();
-  const targetBtn = event.currentTarget;
-  
-  // Close any legacy dangling confirmation parameters safely
-  dismissActiveConfirmationOverlays();
-  
-  const popover = document.createElement('div');
-  popover.className = 'confirm-popover';
-  popover.id = 'active-popover';
-  popover.innerHTML = `
-    <span>Are you sure?</span>
-    <div class="popover-buttons">
-      <button class="popover-btn popover-confirm" onclick="commitSingleRecordWipe('${id}')">Yes</button>
-      <button class="popover-btn popover-cancel" onclick="dismissActiveConfirmationOverlays()">No</button>
-    </div>
-  `;
-  
-  targetBtn.parentElement.appendChild(popover);
-}
-
-function dismissActiveConfirmationOverlays() {
-  const active = document.getElementById('active-popover');
-  if(active) active.parentElement.removeChild(active);
-}
-
-function commitSingleRecordWipe(id) {
-  State.contacts = State.contacts.filter(c => c.id !== id);
-  localStorage.setItem(CONFIG.STORAGE_PREFIX + 'vcf_contacts', JSON.stringify(State.contacts));
-  showToast('Segment record purged from mapping dictionary', 'info');
-  updateGlobalCounters();
-  calculateMetrics();
-  filterAndRenderTable();
-}
-
-function triggerWipeSequence(btnSource) {
-  // Leverage internal lightbox framework interface elements
-  const modal = document.getElementById('lightbox-modal');
-  if(!modal) return;
-  
-  modal.innerHTML = `
-    <div class="gate-card" style="margin: 15vh auto; max-width: 460px;">
-      <div class="gate-icon-wrapper" style="background: rgba(239,68,68,0.1); box-shadow: 0 0 30px rgba(239,68,68,0.15)">
-        <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-red); font-size:30px;"></i>
-      </div>
-      <h2>Destructive Action Alert</h2>
-      <p>This will purge the local browser allocation table completely. This transformation cannot be undone.</p>
-      <div style="display:flex; gap:12px; width:100%;">
-        <button id="modal-confirm-wipe" class="btn-primary" style="background:var(--accent-red); margin:0;">Wipe Storage Matrix</button>
-        <button id="modal-cancel-wipe" class="btn-primary" style="background:rgba(255,255,255,0.05); border:1px solid var(--border-subtle); color:white; margin:0;">Abort</button>
-      </div>
-    </div>
-  `;
-  modal.hidden = false;
-  
-  document.getElementById('modal-cancel-wipe').addEventListener('click', () => modal.hidden = true);
-  document.getElementById('modal-confirm-wipe').addEventListener('click', () => {
-    State.contacts = [];
-    localStorage.setItem(CONFIG.STORAGE_PREFIX + 'vcf_contacts', JSON.stringify([]));
-    showToast('All contact indexes unlinked successfully', 'info');
-    updateGlobalCounters();
-    calculateMetrics();
-    filterAndRenderTable();
-    modal.hidden = true;
-  });
-}
-
-// 14. TOAST METRIC COMPONENT STACK
-function showToast(message, type = 'success') {
-  const container = document.getElementById('toast-container');
-  if (!container) return;
-  
-  // Maintain system guardrails by enforcing max concurrency thresholds
-  const activeToasts = container.querySelectorAll('.toast');
-  if (activeToasts.length >= CONFIG.MAX_TOASTS) {
-    activeToasts[0].parentElement.removeChild(activeToasts[0]);
-  }
-  
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  
-  let iconClass = 'fa-circle-check';
-  if(type === 'error') iconClass = 'fa-circle-xmark';
-  if(type === 'warning') iconClass = 'fa-triangle-exclamation';
-  if(type === 'info') iconClass = 'fa-circle-info';
-  
-  toast.innerHTML = `
-    <i class="fa-solid ${iconClass} toast-icon"></i>
-    <div class="toast-content">
-      <div class="toast-msg">${escapeHtml(message)}</div>
-    </div>
-    <button class="toast-close"><i class="fa-solid fa-xmark"></i></button>
-    <div class="toast-progress"></div>
-  `;
-  
-  container.appendChild(toast);
-  
-  // Reflow force initialization for animation profiles
-  void toast.offsetWidth;
-  toast.classList.add('toast-show');
-  
-  const prog = toast.querySelector('.toast-progress');
-  if(prog) {
-    prog.style.transition = 'transform 4000ms linear';
-    prog.style.transform = 'scaleX(0)';
-  }
-  
-  const dismissTimeout = setTimeout(() => dismissToast(toast), 4000);
-  
-  toast.querySelector('.toast-close').addEventListener('click', () => {
-    clearTimeout(dismissTimeout);
-    dismissToast(toast);
-  });
-}
-
-function dismissToast(toast) {
-  toast.style.transform = 'translateX(110%)';
-  toast.style.transition = `all 0.3s var(--ease-snap)`;
-  setTimeout(() => {
-    if(toast.parentElement) toast.parentElement.removeChild(toast);
-  }, 300);
-}
-
-// 15. KEYBOARD LISTENERS & SANITIZATION LAYER
-function setupKeyboardShortcuts() {
-  window.addEventListener('keydown', (e) => {
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const modifier = isMac ? e.metaKey : e.ctrlKey;
-    
-    // Ctrl/Cmd + K
-    if (modifier && e.key.toLowerCase() === 'k') {
-      if (State.isAuthenticated && State.activeView === 'admin-view') {
-        e.preventDefault();
-        document.getElementById('table-search')?.focus();
+  function executeCountUpAnimation(targetEl, finalValue, duration = 1000, initialValue = 0) {
+    if (!targetEl) return;
+    let startTimestamp = null;
+    function renderStep(timestamp) {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const easeProgress = 1 - Math.pow(1 - progress, 3); // Cubic ease out
+      const current = Math.floor(easeProgress * (finalValue - initialValue) + initialValue);
+      targetEl.textContent = current;
+      if (progress < 1) {
+        requestAnimationFrame(renderStep);
+      } else {
+        targetEl.textContent = finalValue;
       }
     }
-    
-    // Escape
-    if (e.key === 'Escape') {
-      dismissActiveConfirmationOverlays();
-      const modal = document.getElementById('lightbox-modal');
-      if (modal) modal.hidden = true;
-    }
-    
-    // Ctrl/Cmd + S
-    if (modifier && e.key.toLowerCase() === 's') {
-      if (State.activeView === 'tool-view' && State.parsedCache) {
-        e.preventDefault();
-        document.getElementById('save-vcf-btn')?.click();
-      }
-    }
-    
-    // Ctrl/Cmd + E
-    if (modifier && e.key.toLowerCase() === 'e') {
-      if (State.isAuthenticated && State.activeView === 'admin-view') {
-        e.preventDefault();
-        triggerExportAllEngine();
-      }
-    }
-  });
-}
+    requestAnimationFrame(renderStep);
+  }
 
-function escapeHtml(str) {
-  if(!str) return '';
-  return str.replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-}
+  function calculateRelativeTime(isoString) {
+    const elapsed = new Date() - new Date(isoString);
+    const msPerMinute = 60000;
+    const msPerHour = 3600000;
+    const msPerDay = 86400000;
+
+    if (elapsed < msPerMinute) return 'Just now';
+    if (elapsed < msPerHour) {
+      const m = Math.floor(elapsed / msPerMinute);
+      return `Joined ${m} minute${m > 1 ? 's' : ''} ago`;
+    }
+    if (elapsed < msPerDay) {
+      const h = Math.floor(elapsed / msPerHour);
+      return `Joined ${h} hour${h > 1 ? 's' : ''} ago`;
+    }
+    const d = Math.floor(elapsed / msPerDay);
+    return `Joined ${d} day${d > 1 ? 's' : ''} ago`;
+  }
+
+  function generateStringColorHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % PALETTE.length;
+    return PALETTE[index];
+  }
+
+  function extractInitials(f, l) {
+    return ((f ? f.charAt(0) : '') + (l ? l.charAt(0) : '')).toUpperCase();
+  }
+
+  function generateUUIDv4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  function formatDisplayDate(dateObj) {
+    const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+    const tOpts = { hour: '2-digit', minute: '2-digit', hour12: true };
+    return dateObj.toLocaleDateString('en-US', opts) + ' · ' + dateObj.toLocaleTimeString('en-US', tOpts);
+  }
+
+  function sanitizeInput(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function injectDynamicCSSKeyframe(cssText) {
+    const style = document.createElement('style');
+    style.appendChild(document.createTextNode(cssText));
+    document.head.appendChild(style);
+  }
+
+  function px() { return 'px'; }
+
+}());
