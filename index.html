@@ -1,231 +1,313 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Beltah VCF Manager</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beltah VCF | Contact Collector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <canvas id="aurora"></canvas>
-  <div class="dot-grid"></div>
+    <canvas id="aurora"></canvas>
+    <canvas id="grid-canvas"></canvas>
+    <div id="particle-field"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
 
-  <header class="topbar">
-    <div class="topbar-container">
-      <div class="logo-area">
-        <svg class="logo-mark" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="url(#logo-grad)" stroke-width="2" fill="rgba(124,58,237,0.1)"/>
-          <defs>
-            <linearGradient id="logo-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#7c3aed"/>
-              <stop offset="100%" stop-color="#06b6d4"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <div class="logo-text">
-          <div class="brand">Beltah <span class="brand-vcf">VCF</span></div>
-          <div class="tagline">Contact Intelligence Platform</div>
-        </div>
-      </div>
-      <nav class="nav-pills-wrapper">
-        <div class="nav-slider"></div>
-        <button id="nav-tool-btn" class="nav-btn active" data-target="tool-view">Save Contact</button>
-        <button id="nav-admin-btn" class="nav-btn" data-target="admin-view"><i class="fa-solid fa-shield-halved"></i> Admin Panel</button>
-      </nav>
-    </div>
-  </header>
-
-  <main class="main-content">
-    <section id="tool-view" class="view-section active-view">
-      <div class="section-header">
-        <span class="eyebrow-chip">◈ CONTACT IMPORTER</span>
-        <h1 class="main-headline">Save Your <span class="gradient-text">Contacts</span></h1>
-        <p class="sub-headline">Parse, validate, and store VCF contact files — instantly and securely in your browser.</p>
-      </div>
-
-      <div class="tool-card">
-        <div class="segmented-control">
-          <div class="tab-slider"></div>
-          <button class="tab-btn active" data-tab="upload-tab">Upload File</button>
-          <button class="tab-btn" data-tab="paste-tab">Paste VCF Text</button>
-        </div>
-
-        <div id="upload-tab" class="tab-content active-content">
-          <div id="drop-zone" class="drop-zone">
-            <input type="file" id="file-input" accept=".vcf" style="display: none;">
-            <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
-            <p class="drop-label">Drop your .vcf file here</p>
-            <p class="drop-sublabel">or click to browse</p>
-            <span class="badge-mono">[.vcf]</span>
-            <div id="file-success-pills"></div>
-          </div>
-        </div>
-
-        <div id="paste-tab" class="tab-content">
-          <div class="textarea-container">
-            <textarea id="vcf-textarea" placeholder="BEGIN:VCARD&#10;VERSION:3.0&#10;FN:John Doe&#10;TEL;TYPE=CELL:+1234567890&#10;END:VCARD" autocomplete="off" spellcheck="false"></textarea>
-            <div id="char-counter" class="char-counter">0 chars / 0 lines</div>
-          </div>
-        </div>
-
-        <div id="preview-card" class="preview-card hidden">
-          <div class="preview-header">
-            <div id="preview-avatar" class="preview-avatar">??</div>
-            <div class="preview-meta">
-              <h3 id="preview-name">Contact Name</h3>
-              <span id="preview-status-badge" class="status-badge">Valid vCard</span>
+    <nav class="topbar" id="main-topbar">
+        <div class="topbar-container">
+            <div class="logo-group">
+                <svg width="36" height="36" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#7c3aed" />
+                            <stop offset="100%" stop-color="#22d3ee" />
+                        </linearGradient>
+                    </defs>
+                    <path d="M50 5 L89 27.5 L89 72.5 L50 95 L11 72.5 L11 27.5 Z" stroke="url(#logo-grad)" stroke-width="6" fill="none"/>
+                    <path d="M50 25 L72 37.5 L72 62.5 L50 75 L28 62.5 L28 37.5 Z" stroke="url(#logo-grad)" stroke-width="2" fill="none" opacity="0.6"/>
+                    <circle cx="50" cy="50" r="6" fill="#22d3ee"/>
+                    <line x1="50" y1="5" x2="50" y2="25" stroke="#7c3aed" stroke-width="3"/>
+                    <line x1="11" y1="27.5" x2="28" y2="37.5" stroke="#7c3aed" stroke-width="3"/>
+                    <line x1="89" y1="27.5" x2="72" y2="37.5" stroke="#22d3ee" stroke-width="3"/>
+                </svg>
+                <div class="logo-text">
+                    <div class="brand-title"><span class="brand-bold">Beltah</span><span class="brand-mono">VCF</span></div>
+                    <div class="brand-subtitle">Contact Collector</div>
+                </div>
             </div>
-          </div>
-          <div class="preview-body" id="preview-details">
+
+            <div class="nav-pills-desktop">
+                <a href="#hero-section" class="nav-pill-link" id="nav-collect">Collect</a>
+                <a href="#community-section" class="nav-pill-link" id="nav-community">Community</a>
             </div>
-        </div>
 
-        <button id="save-vcf-btn" class="btn-primary" disabled>
-          <span class="btn-text">Save Extracted Contacts</span>
-        </button>
-      </div>
+            <div class="topbar-actions-desktop">
+                <button class="btn-admin-trigger" id="open-admin-btn"><i class="fa-solid fa-lock"></i> Admin Panel</button>
+                <a href="#group-link" class="btn-group-link"><i class="fa-brands fa-whatsapp"></i> Join Group</a>
+            </div>
 
-      <div class="counter-strip">
-        <div class="counter-left">
-          <i class="fa-solid fa-database"></i>
-          <span id="local-counter-text">0 contacts stored locally</span>
+            <button class="hamburger-menu" id="mobile-hamburger" aria-label="Toggle Navigation">
+                <i class="fa-solid fa-bars"></i>
+            </button>
         </div>
-        <span class="badge-amber">Encrypted in browser</span>
-      </div>
-    </section>
-
-    <section id="admin-view" class="view-section" hidden>
-      <div id="password-gate" class="gate-card">
-        <div class="gate-icon-wrapper">
-          <i class="fa-solid fa-lock gate-icon"></i>
-        </div>
-        <h2>Restricted Access</h2>
-        <p>Administrator authentication required</p>
         
-        <form id="gate-form" onsubmit="return false;">
-          <div class="input-group">
-            <input type="password" id="gate-password" placeholder="••••••••••••" autocomplete="off" spellcheck="false">
-            <button type="button" id="toggle-password-btn" class="input-icon-btn">
-              <i class="fa-solid fa-eye"></i>
-            </button>
-          </div>
-          <div class="checkbox-group">
-            <label class="custom-checkbox">
-              <input type="checkbox" id="remember-session">
-              <span class="checkmark"></span>
-              Remember for this session
-            </label>
-          </div>
-          <button type="submit" id="submit-gate-btn" class="btn-primary">Authenticate</button>
-          <div id="gate-error" class="gate-error-msg hidden"></div>
-        </form>
-      </div>
+        <div class="mobile-nav-dropdown" id="mobile-nav-dropdown">
+            <a href="#hero-section" class="mobile-nav-item">Collect</a>
+            <a href="#community-section" class="mobile-nav-item">Community</a>
+            <button class="mobile-nav-item btn-admin-trigger-mob" id="open-admin-btn-mob"><i class="fa-solid fa-lock"></i> Admin Panel</button>
+            <a href="#group-link" class="mobile-nav-item btn-group-link-mob"><i class="fa-brands fa-whatsapp"></i> Join Group</a>
+        </div>
+    </nav>
 
-      <div id="admin-dashboard" class="hidden">
-        <div class="admin-header">
-          <div>
-            <span class="eyebrow-chip">ADMIN CONTROL PANEL</span>
-            <h1 class="admin-headline">Contact Intelligence</h1>
-          </div>
-          <button id="lock-session-btn" class="btn-danger-outline">
-            <i class="fa-solid fa-right-from-bracket"></i> Lock Session
-          </button>
+    <section id="hero-section" class="section-hero">
+        <div class="hero-block">
+            <div class="eyebrow-chip">◈ GLOBAL CONTACT NETWORK</div>
+            <h1 class="main-headline">
+                <div>Join the Beltah</div>
+                <div class="gradient-text">Network</div>
+            </h1>
+            <p class="sub-headline">Share your contact details and become part of our growing professional community. Your vCard will be delivered directly to your inbox.</p>
+            <div class="live-counter-strip">
+                <span class="pulse-dot">◎</span> <span id="hero-counter-num">0</span> members have already joined
+            </div>
         </div>
 
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <div class="metric-info">
-              <span class="metric-label">Total Contacts</span>
-              <h2 id="metric-total" class="metric-val">0</h2>
-            </div>
-            <i class="fa-solid fa-address-book metric-icon"></i>
-          </div>
-          <div class="metric-card">
-            <div class="metric-info">
-              <span class="metric-label">Saved Today</span>
-              <h2 id="metric-today" class="metric-val">0</h2>
-            </div>
-            <i class="fa-solid fa-calendar-day metric-icon"></i>
-          </div>
-          <div class="metric-card">
-            <div class="metric-info">
-              <span class="metric-label">Storage Used</span>
-              <h2 id="metric-storage" class="metric-val">0.0 KB</h2>
-            </div>
-            <i class="fa-solid fa-hard-drive metric-icon"></i>
-          </div>
-          <div class="metric-card">
-            <div class="metric-info">
-              <span class="metric-label">Last Import</span>
-              <h2 id="metric-last" class="metric-val">-</h2>
-            </div>
-            <i class="fa-solid fa-clock metric-icon"></i>
-          </div>
-        </div>
+        <div class="form-card-container">
+            <div class="form-card" id="contact-form-card">
+                <div class="form-card-header">
+                    <div class="header-icon-box">
+                        <i class="fa-solid fa-address-card"></i>
+                    </div>
+                    <h2>Your Contact Details</h2>
+                    <p>All fields are required</p>
+                </div>
 
-        <div class="table-toolbar">
-          <div class="toolbar-left">
-            <h3>All Contacts</h3>
-            <span id="table-count-badge" class="count-badge">0</span>
-          </div>
-          <div class="toolbar-right">
-            <div class="search-wrapper">
-              <i class="fa-solid fa-magnifying-glass search-icon"></i>
-              <input type="text" id="table-search" placeholder="Search contacts..." autocomplete="off">
+                <form id="collector-form" novalidate>
+                    <div class="field-group entry-fade-up" style="animation-delay: 0ms;">
+                        <i class="fa-solid fa-user field-icon-left"></i>
+                        <input type="text" id="input-firstname" placeholder="First name" autocomplete="given-name" required spellcheck="false">
+                        <div class="validation-status-icon"></div>
+                        <div class="error-msg" id="err-firstname"></div>
+                    </div>
+
+                    <div class="field-group entry-fade-up" style="animation-delay: 80ms;">
+                        <i class="fa-regular fa-user field-icon-left"></i>
+                        <input type="text" id="input-lastname" placeholder="Last name" autocomplete="family-name" required spellcheck="false">
+                        <div class="validation-status-icon"></div>
+                        <div class="error-msg" id="err-lastname"></div>
+                    </div>
+
+                    <div class="field-group phone-group entry-fade-up" style="animation-delay: 160ms;">
+                        <div class="phone-dropdown-wrapper">
+                            <select id="input-country-dial" aria-label="Country Dial Code">
+                                <option value="+254" data-country="Kenya">🇰🇪 +254</option>
+                                <option value="+1" data-country="USA">🇺🇸 +1</option>
+                                <option value="+44" data-country="UK">🇬🇧 +44</option>
+                                <option value="+256" data-country="Uganda">🇺🇬 +256</option>
+                                <option value="+255" data-country="Tanzania">🇹🇿 +255</option>
+                                <option value="+234" data-country="Nigeria">🇳🇬 +234</option>
+                                <option value="+27" data-country="South Africa">🇿🇦 +27</option>
+                                <option value="+91" data-country="India">🇮🇳 +91</option>
+                                <option value="+971" data-country="UAE">🇦🇪 +971</option>
+                                <option value="+49" data-country="Germany">🇩🇪 +49</option>
+                                <option value="+33" data-country="France">🇫🇷 +33</option>
+                                <option value="+1-CA" data-country="Canada">🇨🇦 +1</option>
+                                <option value="+61" data-country="Australia">🇦🇺 +61</option>
+                                <option value="+86" data-country="China">🇨🇳 +86</option>
+                                <option value="+55" data-country="Brazil">🇧🇷 +55</option>
+                            </select>
+                            <i class="fa-solid fa-chevron-down custom-select-arrow"></i>
+                        </div>
+                        <input type="tel" id="input-phone" placeholder="Phone number" autocomplete="off" required spellcheck="false">
+                        <div class="validation-status-icon-phone"></div>
+                        <div class="error-msg" id="err-phone"></div>
+                    </div>
+
+                    <button type="submit" class="btn-form-submit entry-fade-up" style="animation-delay: 240ms;" id="btn-submit-form">
+                        <i class="fa-solid fa-paper-plane"></i> Join Network
+                    </button>
+                </form>
             </div>
-            <select id="table-sort" class="select-dropdown">
-              <option value="name-asc">Name A–Z</option>
-              <option value="name-desc">Name Z–A</option>
-              <option value="date-desc" selected>Newest First</option>
-              <option value="date-asc">Oldest First</option>
-            </select>
-            <button id="export-all-btn" class="btn-amber">
-              <i class="fa-solid fa-file-export"></i> Export All
-            </button>
-            <button id="clear-all-btn" class="btn-danger-outline">
-              <i class="fa-solid fa-trash"></i> Clear All
-            </button>
-          </div>
         </div>
-
-        <div class="table-container">
-          <table id="contacts-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th>Organisation</th>
-                <th>Saved</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="table-body">
-              </tbody>
-          </table>
-          <div id="table-empty-state" class="empty-state hidden"></div>
-        </div>
-
-        <div id="pagination-wrapper" class="pagination-bar hidden"></div>
-      </div>
     </section>
-  </main>
 
-  <footer class="shortcut-strip">
-    <span><kbd>Ctrl</kbd> + <kbd>K</kbd> Search</span>
-    <span><kbd>Ctrl</kbd> + <kbd>S</kbd> Save Contact</span>
-    <span><kbd>Ctrl</kbd> + <kbd>E</kbd> Export All</span>
-    <span><kbd>Esc</kbd> Dismiss</span>
-  </footer>
+    <section id="community-section" class="section-community">
+        <div class="section-header-block">
+            <div class="community-eyebrow">◎ LIVE COMMUNITY FEED</div>
+            <h2 class="community-headline gradient-text">Members Who Have Joined</h2>
+            <p class="community-sub">A growing network of professionals. Phone numbers are private.</p>
+            <div class="verified-banner-pill">
+                <span class="live-pulse-indicator"></span>
+                <span id="community-verified-count">0</span> verified members
+            </div>
+        </div>
 
-  <div id="toast-container"></div>
-  <div id="lightbox-modal" class="modal-overlay" hidden></div>
+        <div class="community-grid-container">
+            <div class="community-grid" id="public-members-grid">
+                </div>
+        </div>
+    </section>
 
-  <script src="script.js"></script>
+    <section class="section-group-invitation">
+        <div class="invitation-content-wrapper">
+            <div class="invitation-icon-box">
+                <i class="fa-solid fa-users"></i>
+            </div>
+            <h2 class="invitation-headline">Your vCard Awaits</h2>
+            <p class="invitation-sub">Download your complete vCard from our community group. Join below and our admin will send your personal contact file directly to you.</p>
+            <a href="#group-link" class="btn-invitation-cta"><i class="fa-brands fa-whatsapp"></i> Join the Beltah Community Group</a>
+            <div class="invitation-trust-line">🔒 Your data is stored only in this browser session and never shared.</div>
+        </div>
+    </section>
+
+    <footer class="app-footer">
+        <div class="footer-inner">&copy; 2026 Beltah Tech Services. All Rights Reserved. Designed by UI/UX Architects Engine.</div>
+    </footer>
+
+    <div class="admin-panel-overlay" id="admin-panel-overlay">
+        <button class="admin-close-btn" id="close-admin-btn" aria-label="Close Admin Panel">&times;</button>
+        
+        <div class="admin-panel-content-scroller">
+            <div id="admin-auth-gate-card" class="admin-gate-card">
+                <div class="gate-lock-icon">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h3>Administrator Access</h3>
+                <p>Enter your admin password to continue</p>
+                <form id="admin-login-form" novalidate>
+                    <div class="field-group admin-pass-field">
+                        <input type="password" id="admin-pass-input" placeholder="••••••••" required autocomplete="off" spellcheck="false">
+                        <button type="button" class="btn-toggle-password" id="btn-toggle-admin-pass" aria-label="Toggle Password Visibility">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="error-msg-admin" id="admin-gate-error"></div>
+                    <button type="submit" class="btn-admin-auth-submit">Authenticate System</button>
+                </form>
+            </div>
+
+            <div id="admin-dashboard-view" class="admin-dashboard-layout" style="display: none;">
+                <div class="dashboard-header-row">
+                    <div class="dashboard-title-side">
+                        <span class="dash-logo-text">Beltah VCF System</span>
+                        <span class="admin-badge">ADMIN PANEL</span>
+                    </div>
+                    <button class="btn-lock-session" id="btn-admin-logout"><i class="fa-solid fa-power-off"></i> Lock Session</button>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Members</div>
+                        <div class="metric-value" id="meta-total-members">0</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Joined Today</div>
+                        <div class="metric-value" id="meta-joined-today">0</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">vCard Volume</div>
+                        <div class="metric-value" id="meta-vcard-size">0 KB</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Last Submission</div>
+                        <div class="metric-value" id="meta-last-time">Never</div>
+                    </div>
+                </div>
+
+                <div class="master-vcf-management-block">
+                    <div class="vcf-block-left">
+                        <div class="vcf-icon-container">
+                            <i class="fa-solid fa-address-book"></i>
+                        </div>
+                        <div class="vcf-meta-text">
+                            <h4>Compiled Master vCard Engine</h4>
+                            <p id="vcf-master-sub-details">Contains 0 contacts &middot; 0 KB</p>
+                            <div class="vcf-timestamp-node" id="vcf-master-timestamp">Last compiled structural sync: Idle</div>
+                        </div>
+                    </div>
+                    <div class="vcf-block-right">
+                        <button class="btn-vcf-action-download" id="btn-download-master-vcf"><i class="fa-solid fa-download"></i> Download .vcf File</button>
+                        <div class="inline-popover-anchor">
+                            <button class="btn-vcf-action-delete" id="btn-delete-master-vcf-trigger"><i class="fa-solid fa-trash"></i> Delete Compiled vCard</button>
+                            <div class="custom-inline-popover" id="popover-delete-master-vcf">
+                                <p>This will permanently delete the compiled .vcf file. Individual contact records remain. Confirm?</p>
+                                <div class="popover-btn-row">
+                                    <button type="button" class="btn-pop-cancel" id="btn-pop-master-cancel">Cancel</button>
+                                    <button type="button" class="btn-pop-confirm-red" id="btn-pop-master-confirm">Delete vCard</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="contacts-table-wrapper-card">
+                    <div class="table-toolbar">
+                        <div class="toolbar-left">
+                            <h3>All Members <span class="table-count-badge" id="table-total-badge">0</span></h3>
+                        </div>
+                        <div class="toolbar-right">
+                            <div class="search-input-container">
+                                <i class="fa-solid fa-magnifying-glass search-inline-icon"></i>
+                                <input type="text" id="table-search-input" placeholder="Search records..." autocomplete="off" spellcheck="false">
+                            </div>
+                            <div class="select-dropdown-container">
+                                <select id="table-sort-select" aria-label="Sort Records">
+                                    <option value="newest">Newest First</option>
+                                    <option value="oldest">Oldest First</option>
+                                    <option value="alpha">Name A–Z</option>
+                                </select>
+                                <i class="fa-solid fa-arrow-down-z-a select-inline-arrow"></i>
+                            </div>
+                            <button class="btn-toolbar-export-vcf" id="btn-bulk-export-vcf-js"><i class="fa-solid fa-file-export"></i> Export All VCF</button>
+                            <div class="inline-popover-anchor">
+                                <button class="btn-toolbar-clear-all" id="btn-clear-all-records-trigger"><i class="fa-solid fa-dumpster-fire"></i> Clear All</button>
+                                <div class="custom-inline-popover" id="popover-clear-all-records">
+                                    <p>Are you sure you want to permanently erase ALL records from localized ecosystem memory?</p>
+                                    <div class="popover-btn-row">
+                                        <button type="button" class="btn-pop-cancel" id="btn-pop-clear-cancel">Cancel</button>
+                                        <button type="button" class="btn-pop-confirm-red" id="btn-pop-clear-confirm">Clear All</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="responsive-table-scroll-container">
+                        <table class="contacts-data-table" id="admin-main-data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Avatar</th>
+                                    <th>Full Name</th>
+                                    <th>Phone (Admin Decrypted)</th>
+                                    <th>Country</th>
+                                    <th>Joined Time</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-table-tbody-root">
+                                </tbody>
+                        </table>
+                        <div id="admin-table-empty-state-container" class="table-empty-view" style="display: none;"></div>
+                    </div>
+
+                    <div class="table-pagination-nav-bar" id="table-pagination-controls-wrapper">
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-notification-center-stack" id="toast-stack-master-root"></div>
+    
+    <canvas id="confetti-canvas"></canvas>
+    
+    <div class="screen-flash-pulse-node" id="screen-flash-element"></div>
+
+    <script src="script.js"></script>
 </body>
 </html>
