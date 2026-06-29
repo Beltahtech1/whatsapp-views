@@ -1,14 +1,19 @@
 :root {
-  --bg-void: #05050a;
-  --bg-surface: #0d0d14;
-  --bg-elevated: #13131d;
-  --bg-overlay: rgba(255, 255, 255, 0.025);
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.12);
+  /* Background Colors — made darker */
+  --bg-void: #000005;
+  --bg-surface: #04040e;
+  --bg-elevated: #07071a;
+  --bg-overlay: rgba(255, 255, 255, 0.015);
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.15);
   --border-accent: rgba(139, 92, 246, 0.4);
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #475569;
+  
+  /* Font Visibility — increased contrast */
+  --text-primary: #ffffff;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-placeholder: #64748b;
+  
   --accent-violet: #7c3aed;
   --accent-purple: #a855f7;
   --accent-cyan: #06b6d4;
@@ -73,7 +78,7 @@ body {
   top: 0;
   width: 100%;
   height: 64px;
-  background: rgba(5, 5, 10, 0.8);
+  background: rgba(2, 2, 10, 0.8);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border-subtle);
   z-index: 100;
@@ -143,7 +148,7 @@ body {
   padding: 8px 20px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-muted); /* Inactive nav link text */
   cursor: pointer;
   border-radius: 100px;
   transition: color 0.2s ease;
@@ -152,8 +157,8 @@ body {
   gap: 8px;
 }
 
-.nav-btn.active {
-  color: #ffffff;
+.nav-btn.active, .nav-btn:hover {
+  color: #ffffff; /* Active or hovered link text */
 }
 
 /* LAYOUT & MAIN */
@@ -188,7 +193,7 @@ body {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: var(--accent-cyan);
+  color: #a5f3fc; /* Increased contrast bright cyan chip text */
   margin-bottom: 16px;
 }
 
@@ -199,6 +204,10 @@ body {
   color: #ffffff;
   line-height: 1.1;
   margin-bottom: 16px;
+}
+
+h1, h2, h3 {
+  color: #ffffff !important; /* Forces flat color headings to pure white */
 }
 
 .gradient-text {
@@ -218,7 +227,7 @@ body {
 .tool-card {
   max-width: 680px;
   margin: 0 auto;
-  background: var(--bg-overlay);
+  background: var(--bg-surface); /* Mapped to targeted deeper surface background */
   backdrop-filter: var(--blur-glass);
   -webkit-backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-subtle);
@@ -297,6 +306,7 @@ body {
   color: var(--accent-violet);
   margin-bottom: 16px;
   transition: transform 0.3s var(--ease-bounce);
+  opacity: 1 !important; /* Full icon visibility execution */
 }
 
 .drop-zone.success-drop .drop-icon {
@@ -354,7 +364,7 @@ body {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  color: var(--text-primary);
+  color: #ffffff; /* Explicitly forced white typed text */
   padding: 16px;
   resize: vertical;
   outline: none;
@@ -366,13 +376,17 @@ body {
   box-shadow: 0 0 0 3px var(--glow-violet);
 }
 
+#vcf-textarea::placeholder {
+  color: var(--text-placeholder) !important;
+}
+
 .char-counter {
   position: absolute;
   bottom: 12px;
   right: 12px;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-placeholder);
   pointer-events: none;
 }
 
@@ -461,7 +475,8 @@ body {
 
 .preview-row i {
   width: 16px;
-  color: var(--text-muted);
+  color: var(--text-placeholder);
+  opacity: 1 !important;
 }
 
 .btn-primary {
@@ -471,8 +486,8 @@ body {
   background: linear-gradient(135deg, var(--accent-violet), var(--accent-purple));
   border: none;
   border-radius: var(--radius-md);
-  color: #ffffff;
-  font-weight: 700;
+  color: #ffffff !important; /* Enforces white button text */
+  font-weight: 700 !important; /* Enforces font weight 700 */
   font-size: 15px;
   letter-spacing: 0.01em;
   cursor: pointer;
@@ -521,6 +536,7 @@ body {
 
 .counter-left i {
   color: var(--accent-violet);
+  opacity: 1 !important;
 }
 
 .badge-amber {
@@ -537,7 +553,7 @@ body {
 .gate-card {
   max-width: 420px;
   margin: 60px auto;
-  background: var(--bg-overlay);
+  background: var(--bg-surface); /* Mapped to deeper background token */
   backdrop-filter: var(--blur-glass);
   -webkit-backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-subtle);
@@ -566,6 +582,7 @@ body {
 .gate-icon {
   font-size: 32px;
   color: var(--accent-violet);
+  opacity: 1 !important;
 }
 
 .gate-card h2 {
@@ -592,11 +609,15 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 0 48px 0 16px;
-  color: #ffffff;
+  color: #ffffff !important; /* Explicitly white typed text */
   font-family: var(--font-mono);
   letter-spacing: 0.2em;
   outline: none;
   transition: border-color 0.2s;
+}
+
+#gate-password::placeholder {
+  color: var(--text-placeholder) !important;
 }
 
 #gate-password:focus {
@@ -615,7 +636,7 @@ body {
   height: 40px;
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-placeholder);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -658,7 +679,7 @@ body {
 }
 
 .custom-checkbox:hover input ~ .checkmark {
-  border-color: var(--text-muted);
+  border-color: var(--text-placeholder);
 }
 
 .custom-checkbox input:checked ~ .checkmark {
@@ -733,7 +754,7 @@ body {
 }
 
 .metric-card {
-  background: var(--bg-overlay);
+  background: var(--bg-surface); /* Darker structural card setting */
   backdrop-filter: var(--blur-glass);
   -webkit-backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-subtle);
@@ -747,7 +768,7 @@ body {
 .metric-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-muted) !important; /* Targets structural metric labels precisely */
   display: block;
   margin-bottom: 8px;
 }
@@ -756,12 +777,13 @@ body {
   font-family: var(--font-mono);
   font-size: 24px;
   font-weight: 700;
+  color: #ffffff !important; /* High contrast admin numbers */
 }
 
 .metric-icon {
   font-size: 28px;
-  color: var(--text-muted);
-  opacity: 0.5;
+  color: var(--text-placeholder);
+  opacity: 1 !important;
 }
 
 .table-toolbar {
@@ -808,7 +830,7 @@ body {
   top: 50%;
   transform: translateY(-50%);
   font-size: 14px;
-  color: var(--text-muted);
+  color: var(--text-placeholder);
 }
 
 #table-search {
@@ -817,11 +839,15 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 0 16px 0 38px;
-  color: #ffffff;
+  color: #ffffff !important;
   font-size: 13px;
   outline: none;
   width: 220px;
   transition: all 0.2s;
+}
+
+#table-search::placeholder {
+  color: var(--text-placeholder) !important;
 }
 
 #table-search:focus {
@@ -835,7 +861,7 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 0 12px;
-  color: var(--text-primary);
+  color: #ffffff;
   font-size: 13px;
   outline: none;
   cursor: pointer;
@@ -879,7 +905,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-muted) !important; /* Styled to medium slate */
   padding: 12px 16px;
   text-align: left;
 }
@@ -893,12 +919,12 @@ body {
 }
 
 .contact-row {
-  background: var(--bg-overlay);
+  background: var(--bg-surface); /* Swapped deep overlay out for deeper target */
   transition: all 0.2s var(--ease-snap);
 }
 
 .contact-row:hover {
-  background: rgba(124, 58, 237, 0.05);
+  background: var(--bg-elevated);
 }
 
 .contact-row.row-updating {
@@ -910,13 +936,14 @@ body {
   font-size: 13px;
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
+  color: #e2e8f0 !important; /* Table data text definition assignment */
 }
 
 .contact-row td:first-child {
   border-left: 1px solid var(--border-subtle);
   border-radius: var(--radius-md) 0 0 var(--radius-md);
   font-family: var(--font-mono);
-  color: var(--text-muted);
+  color: var(--text-placeholder) !important;
 }
 
 .contact-row td:last-child {
@@ -947,6 +974,11 @@ body {
   font-family: var(--font-mono);
 }
 
+/* Precise high-contrast configuration for phone column cell elements */
+.contact-row td.td-mono, .contact-row td .phone-mono {
+  color: #67e8f9 !important;
+}
+
 .actions-cell {
   display: flex;
   gap: 8px;
@@ -964,6 +996,7 @@ body {
   justify-content: center;
   font-size: 12px;
   transition: all 0.2s var(--ease-spring);
+  opacity: 1 !important;
 }
 
 .action-btn.cyan-btn {
@@ -1034,7 +1067,8 @@ body {
 
 .empty-state svg {
   margin-bottom: 16px;
-  stroke: var(--text-muted);
+  stroke: var(--text-placeholder);
+  opacity: 1 !important;
 }
 
 .empty-state h4 {
@@ -1045,7 +1079,7 @@ body {
 
 .empty-state p {
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--text-placeholder);
 }
 
 /* Pagination */
@@ -1062,7 +1096,7 @@ body {
   min-width: 32px;
   padding: 0 8px;
   border: 1px solid var(--border-subtle);
-  background: var(--bg-overlay);
+  background: var(--bg-surface);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
@@ -1102,7 +1136,7 @@ body {
 }
 
 .toast {
-  background: rgba(13, 13, 20, 0.85);
+  background: rgba(7, 7, 26, 0.95); /* Swapped deep frame container layout back to elevated style values */
   backdrop-filter: var(--blur-glass);
   -webkit-backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-subtle);
@@ -1126,6 +1160,7 @@ body {
 .toast-icon {
   font-size: 16px;
   margin-top: 1px;
+  opacity: 1 !important;
 }
 
 .toast.success { border-left: 3px solid var(--accent-emerald); }
@@ -1146,7 +1181,7 @@ body {
 
 .toast-msg {
   font-size: 13px;
-  color: var(--text-primary);
+  color: #ffffff !important; /* Crisp pure white text messaging inside toasts */
   line-height: 1.4;
   font-weight: 500;
 }
@@ -1154,7 +1189,7 @@ body {
 .toast-close {
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-placeholder);
   cursor: pointer;
   font-size: 12px;
 }
@@ -1183,7 +1218,7 @@ body {
   left: 0;
   width: 100%;
   height: 32px;
-  background: rgba(5,5,10,0.9);
+  background: rgba(0,0,5,0.9); /* Connected directly to var(--void) tone background layers */
   border-top: 1px solid var(--border-subtle);
   z-index: 90;
   display: flex;
@@ -1201,6 +1236,24 @@ kbd {
   padding: 1px 5px;
   font-family: var(--font-mono);
   color: var(--text-secondary);
+}
+
+/* Specific explicit configurations for generic layout elements requested */
+p, span {
+  color: #cbd5e1; /* Enforces body text contrast minimum */
+}
+
+form fieldset label, .form-group label, label {
+  color: #e2e8f0 !important;
+  font-weight: 600 !important;
+}
+
+footer {
+  color: var(--text-muted);
+}
+
+footer a:hover {
+  color: #ffffff !important;
 }
 
 /* GLOBAL ANIMATIONS */
@@ -1284,7 +1337,7 @@ kbd {
     width: 100%;
   }
   #contacts-table tr {
-    background: var(--bg-overlay);
+    background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     margin-bottom: 12px;
@@ -1302,7 +1355,7 @@ kbd {
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    color: var(--text-muted);
+    color: var(--text-placeholder);
   }
   .actions-cell {
     justify-content: flex-end;
